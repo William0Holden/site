@@ -24,3 +24,7 @@ writeFileSync(
   JSON.stringify({ site: { ...site.data, bio: stripComments(site.content) }, projects, media }, null, 2),
 );
 console.log(`exported ${projects.length} projects to dist/api/content.json`);
+
+const { manifest } = await import('../tools/registry.ts');
+writeFileSync(join(out, 'registry.json'), JSON.stringify(manifest(), null, 2));
+console.log('exported tool registry to dist/api/registry.json');
