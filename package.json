@@ -1,0 +1,25 @@
+{
+  "name": "wholden-site",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && node scripts/export-content.mjs",
+    "preview": "wrangler dev",
+    "check": "astro check",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@astrojs/react": "^7.0.1",
+    "astro": "^7.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@cloudflare/workers-types": "^5.20261012.1",
+    "gray-matter": "^4.0.3",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.149.0"
+  }
+}

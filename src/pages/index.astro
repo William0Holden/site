@@ -1,0 +1,28 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+import { getProjects, getSite } from '../lib';
+import headshot from '../assets/headshot.jpg';
+
+const site = await getSite();
+const featured = (await getProjects()).filter((p) => p.data.featured);
+---
+<Base>
+  <section class="hero">
+    <div>
+      <p class="eyebrow">{site.data.role} · {site.data.location}</p>
+      <h1>{site.data.name}</h1>
+      <p class="lede">{site.data.tagline}</p>
+      <p><a class="btn" href="/projects">See the work</a> <a class="btn" href="/resume">Resume</a></p>
+    </div>
+    <Image src={headshot} alt="Headshot of William O. Holden" width={240} height={346} loading="eager" class="headshot" />
+  </section>
+  <h2>Selected work</h2>
+  <div class="grid">{featured.map((p) => <ProjectCard project={p} />)}</div>
+</Base>
+<style>
+  .hero { display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: center; padding-block: 2rem; }
+  .headshot { border-radius: 18px; border: 1px solid var(--border); width: 200px; height: auto; }
+  @media (max-width: 640px) { .hero { grid-template-columns: 1fr; } .headshot { width: 140px; order: -1; } }
+</style>

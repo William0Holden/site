@@ -1,0 +1,20 @@
+[
+  {
+    "id": "headshot",
+    "type": "image",
+    "src": "src/assets/headshot.jpg",
+    "title": "William O. Holden",
+    "alt": "Headshot of William O. Holden",
+    "caption": "",
+    "projects": []
+  },
+  {
+    "id": "resume-pdf",
+    "type": "pdf",
+    "src": "/resume.pdf",
+    "title": "Resume (PDF)",
+    "alt": "William O. Holden's one-page resume as a PDF",
+    "caption": "Phone number removed for the web.",
+    "projects": []
+  }
+]
