@@ -3,6 +3,10 @@
 > **Read "Status and decisions (2026-10-12)" first.** It overrides the original spec below
 > where they differ. The original spec follows unchanged except for the domain and repo name.
 
+**Start here (local Claude Code):** `git clone https://github.com/William0Holden/site && cd site
+&& git checkout claude/serene-mayer-5zl7s0 && npm install && npm run build && npm run preview`,
+then read `CLAUDE.md`. Work continues from "Not built yet" below.
+
 ## Status and decisions (2026-10-12)
 
 ### Decided by William
