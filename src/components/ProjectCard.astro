@@ -1,0 +1,10 @@
+---
+import type { CollectionEntry } from 'astro:content';
+interface Props { project: CollectionEntry<'projects'> }
+const { data } = Astro.props.project;
+---
+<a class="card" href={`/p/${data.slug}`} style={`--card-accent:${data.theme.accent}`}>
+  <span class="eyebrow" style={`color:${data.theme.accent}`}>{data.kind.replace('-', ' ')} · {data.period}</span>
+  <h3 style={`view-transition-name:title-${data.slug}`}>{data.title}</h3>
+  <p>{data.summary}</p>
+</a>
