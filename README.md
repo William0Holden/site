@@ -1,7 +1,8 @@
 # wholden.com
 
 William O. Holden's personal site: a static Astro site served by a Cloudflare Worker, with
-terminal access (`curl wholden.com`), and later an AI chat, SSH app, and MCP server.
+terminal access (`curl wholden.com`). In a browser the whole site is a terminal: a simulated Linux
+shell over William's content with an AI assistant, plus `boot` for a real Linux VM (v86). Also an MCP server at `/mcp`.
 See `docs/HANDOFF.md` for the full plan.
 
 ## Develop
