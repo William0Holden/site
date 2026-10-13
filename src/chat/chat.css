@@ -1,8 +1,12 @@
 .chat { display: flex; flex-direction: column; gap: .75rem; border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in oklab, var(--surface), transparent 20%); padding: 1rem; }
-.chat-page { min-height: min(75dvh, 48rem); }
+.chat-page { min-height: min(72dvh, 46rem); }
+.chat-page.chat-is-empty { min-height: 0; }
+.chat-is-empty .chat-log { min-height: 0; }
 .chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .9rem; max-height: 60dvh; min-height: 8rem; overscroll-behavior: contain; }
 .chat-home .chat-log { max-height: 26rem; }
-.chat-empty { color: var(--muted); }
+.chat-empty { color: var(--muted); text-align: center; padding: 1.5rem .5rem .5rem; max-width: 40rem; margin-inline: auto; }
+.chat-hello { color: var(--fg); font-size: 1.35rem; font-weight: 600; margin-bottom: .4rem !important; }
+.chat-is-empty .chat-chips { justify-content: center; }
 .chat-msg { max-width: 100%; overflow-wrap: anywhere; }
 .chat-msg p { margin: .25rem 0; }
 .chat-msg ul, .chat-msg ol { margin: .25rem 0; padding-left: 1.25rem; }
@@ -39,3 +43,4 @@
 @media (max-width: 640px) { .cm-resume object { display: none; } }
 .cm-contact { display: flex; flex-wrap: wrap; gap: .4rem; }
 .cm-gh { margin: 0; padding-left: 1rem; font-size: .9rem; }
+.cm-sources ul { margin: .3rem 0 0; padding-left: 1rem; font-size: .88rem; }

@@ -5,6 +5,7 @@ import { LIMITS, DEFAULT_MODEL, DEFAULT_FALLBACK } from './config';
 import { cookie, getCookie, ipKey, issuePow, signSession, verifyPow, verifySession, verifyToken, verifyTurnstile, visitorId } from './auth';
 import { streamRound, type ChatMessage } from './llm';
 import { chatTools, systemPrompt, toolDefinitions } from './prompt';
+import { WEB_SEARCH_TOOL, webSearch } from './websearch';
 import type { Content, Ctx, PersonalEntry } from '../tools/registry';
 import personalData from './generated/personal.json';
 
@@ -157,7 +158,8 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
       { role: 'system', content: [{ type: 'text', text: systemPrompt(content), cache_control: { type: 'ephemeral' } }] },
       ...v.messages,
     ];
-    const defs = toolDefinitions();
+    const defs = [...toolDefinitions(), WEB_SEARCH_TOOL];
+    let webSearches = 0;
     const available = chatTools();
     let spent = 0;
     let toolChars = 0;
@@ -175,7 +177,20 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
         for (const call of calls) {
           const t = available.find((x) => x.name === call.function.name);
           let output: string;
-          if (!t) output = `Unknown tool ${call.function.name}.`;
+          if (call.function.name === 'web_search') {
+            let q = '';
+            try { q = String(JSON.parse(call.function.arguments || '{}').query ?? ''); } catch { /* invalid */ }
+            if (!q.trim()) output = 'Invalid arguments for web_search.';
+            else if (webSearches >= LIMITS.maxWebSearchesPerRequest) output = 'Web search limit reached for this message; answer with what you have.';
+            else {
+              webSearches++;
+              send('tool', { name: 'web_search', hidden: false });
+              const r = await webSearch(env.OPENROUTER_API_KEY!, models(env)[0], q, req.signal);
+              spent += r.costUsd;
+              if (r.sources.length) send('ui', { component: 'WebSources', props: { sources: r.sources } });
+              output = r.text;
+            }
+          } else if (!t) output = `Unknown tool ${call.function.name}.`;
           else {
             let args: unknown = {};
             try { args = call.function.arguments ? JSON.parse(call.function.arguments) : {}; } catch { args = null; }

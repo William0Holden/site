@@ -14,11 +14,9 @@ const pageTitle = title ? `${title} · ${site.data.shortName}` : `${site.data.na
 const desc = description ?? site.data.tagline;
 const path = Astro.url.pathname.replace(/\/$/, '') || '/';
 const nav = [
-  ['/projects', 'Projects'],
-  ['/about', 'About'],
+  ['/', 'Chat'],
+  ['/projects', 'Work'],
   ['/resume', 'Resume'],
-  ['/chat', 'Chat'],
-  ['/contact', 'Contact'],
   ['/terminal', 'Terminal'],
 ];
 ---
@@ -41,7 +39,7 @@ const nav = [
       <a class="brand" href="/">wholden<span>.com</span></a>
       <nav aria-label="Primary">
         {nav.map(([href, label]) => (
-          <a href={href} aria-current={path.startsWith(href) ? 'page' : undefined}>{label}</a>
+          <a href={href} aria-current={(href === '/' ? path === '/' : path.startsWith(href)) ? 'page' : undefined}>{label}</a>
         ))}
         <CommandPalette client:idle />
       </nav>
