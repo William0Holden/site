@@ -31,12 +31,17 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
+// Consolidated pages: old URLs keep working.
+const MOVED: Record<string, string> = { '/about': '/resume', '/contact': '/resume#contact', '/chat': '/' };
+
 async function route(request: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response> {
   if (isTerminalClient(request)) {
     const res = await renderCurl(url, env);
     if (res) return res;
   }
 
+  const moved = MOVED[url.pathname.replace(/\/+$/, '')];
+  if (moved && !isTerminalClient(request)) return Response.redirect(new URL(moved, url).toString(), 301);
   if (url.pathname === '/api/chat') return handleChat(request, env, ctx);
   if (url.pathname === '/api/chat/status') return chatStatus(env);
   if (url.pathname === '/api/chat/challenge') return powChallenge(env);
@@ -48,7 +53,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext, url: URL
 const code = new URLSearchParams(location.hash.slice(1)).get('code');
 history.replaceState(null, '', '/unlock');
 fetch('/api/unlock', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) })
-  .then((r) => location.replace(r.ok ? '/chat?unlocked=1' : '/chat'), () => location.replace('/chat'));
+  .then((r) => location.replace(r.ok ? '/?unlocked=1' : '/'), () => location.replace('/'));
 </script>`, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } });
   }
   if (url.pathname === '/api/unlock' && request.method === 'POST') {

@@ -12,7 +12,7 @@ type Status = { enabled: boolean; resting: boolean; turnstileSiteKey: string | n
 const STORE = 'wholden-chat-v1';
 const TOOL_LABELS: Record<string, string> = {
   show_project: 'Opening a project', list_projects: 'Listing projects', show_media: 'Fetching media', get_resume: 'Pulling up the resume',
-  contact: 'Getting contact details', open_site: 'Loading a live preview', github_activity: 'Checking GitHub', search_corpus: 'Searching the site',
+  contact: 'Getting contact details', open_site: 'Loading a live preview', github_activity: 'Checking GitHub', search_corpus: 'Searching the site', web_search: 'Searching the web',
 };
 
 declare global {
@@ -180,11 +180,12 @@ export default function Chat({ variant = 'page' }: { variant?: 'home' | 'page' }
   const reset = () => { abort.current?.abort(); setMessages([]); setError(null); };
 
   return (
-    <section className={`chat chat-${variant}`} aria-label="Chat with William's assistant">
+    <section className={`chat chat-${variant}${messages.length === 0 ? ' chat-is-empty' : ''}`} aria-label="Chat with William's assistant">
       <div className="chat-log" ref={log} aria-live="polite" aria-busy={busy}>
         {messages.length === 0 && (
           <div className="chat-empty">
-            <p><strong>Ask me about William's work.</strong> I can pull up projects, research figures, his resume, and how to reach him.</p>
+            <p className="chat-hello">Hi, I'm William's AI assistant.</p>
+            <p>Ask about his projects, research, skills, or how to reach him. I can show figures and demos, pull up the resume, and look things up on the web.</p>
           </div>
         )}
         {messages.map((m, i) => (
@@ -197,7 +198,7 @@ export default function Chat({ variant = 'page' }: { variant?: 'home' | 'page' }
         ))}
       </div>
 
-      {content && (
+      {content && (messages.length === 0 || variant === 'home') && (
         <div className="chat-chips" role="group" aria-label="Suggested questions">
           {chips(content).map((c) => <button key={c.q} type="button" onClick={() => ask(c)} disabled={busy}>{c.q}</button>)}
         </div>
@@ -219,8 +220,8 @@ export default function Chat({ variant = 'page' }: { variant?: 'home' | 'page' }
       </form>
       <p className="chat-meta">
         {status?.enabled && !status.resting && <span>{Math.max(0, maxTurns - userTurns)} messages left in this chat · </span>}
-        {messages.length > 0 && <button type="button" className="chat-link" onClick={reset}>New chat</button>}
-        <span> · AI answers can be wrong; the <a href="/projects">project pages</a> are the source of truth.</span>
+        {messages.length > 0 && <><button type="button" className="chat-link" onClick={reset}>New chat</button> · </>}
+        <span>AI answers can be wrong; the <a href="/projects">project pages</a> are the source of truth.</span>
       </p>
     </section>
   );

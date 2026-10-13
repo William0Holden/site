@@ -10,8 +10,7 @@ type Item =
   | { id: string; kind: 'command'; label: string; hint: string; cmd: string };
 
 const PAGES: [string, string][] = [
-  ['/', 'Home'], ['/projects', 'Projects'], ['/about', 'About'],
-  ['/resume', 'Resume'], ['/chat', 'Chat'], ['/contact', 'Contact'], ['/terminal', 'Terminal'],
+  ['/', 'Chat (home)'], ['/projects', 'Work'], ['/resume', 'Resume'], ['/resume#contact', 'Contact'], ['/terminal', 'Terminal'],
 ];
 
 let registryP: Promise<Registry> | null = null;
