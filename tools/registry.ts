@@ -88,7 +88,7 @@ export const tools: Tool[] = [
   tool({
     name: 'show_project',
     description: 'Full write-up of one project by slug (see list_projects for slugs).',
-    input: z.object({ slug: z.string().describe('Project slug, e.g. "decktection"') }),
+    input: z.object({ slug: z.string().regex(/^[a-z0-9-]{1,64}$/i).describe('Project slug, e.g. "decktection"') }),
     visibility: 'listed', tier: 'public', surfaces: ['chat', 'cli', 'ssh', 'mcp'],
     cli: { aliases: ['show', 'open', 'cat'], args: ['slug'], path: '/p/:slug', usage: 'show <slug>' },
     async handler({ slug }, ctx) {
@@ -201,7 +201,9 @@ export function resolvePath(pathname: string): { tool: Tool; input: unknown } | 
     const re = new RegExp('^' + pattern.replace(/:(\w+)/g, (_m, k) => { keys.push(k); return '([^/]+)'; }) + '$');
     const m = path.match(re);
     if (!m) continue;
-    const parsed = t.input.safeParse(Object.fromEntries(keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])));
+    let values: string[];
+    try { values = m.slice(1).map(decodeURIComponent); } catch { return null; }
+    const parsed = t.input.safeParse(Object.fromEntries(keys.map((k, i) => [k, values[i]])));
     if (parsed.success) return { tool: t, input: parsed.data };
   }
   return null;
@@ -209,7 +211,7 @@ export function resolvePath(pathname: string): { tool: Tool; input: unknown } | 
 
 // Public manifest (no handlers) for SSH, MCP, and the chat's "what I can do" panel.
 export const manifest = () =>
-  tools.map((t) => ({
+  tools.filter((t) => t.visibility === 'listed').map((t) => ({
     name: t.name, description: t.description, visibility: t.visibility, tier: t.tier, surfaces: t.surfaces,
     cli: t.cli ?? {}, inputSchema: z.toJSONSchema(t.input),
   }));

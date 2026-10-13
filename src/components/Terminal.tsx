@@ -21,8 +21,9 @@ export default function Terminal() {
     term.open(el.current!);
     const fit = () => {
       const w = el.current!.clientWidth - 16, h = el.current!.clientHeight - 16;
-      const cell = (term as any)._core?._renderService?.dimensions?.css?.cell;
-      if (cell?.width && cell?.height) term.resize(Math.max(20, Math.floor(w / cell.width)), Math.max(10, Math.floor(h / cell.height)));
+      const measured = (term as any)._core?._renderService?.dimensions?.css?.cell;
+      const size = term.options.fontSize ?? 14;
+      const cell = measured?.width && measured?.height ? measured : { width: size * 0.6, height: size * 1.2 }; term.resize(Math.max(20, Math.floor(w / cell.width)), Math.max(10, Math.floor(h / cell.height)));
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -34,13 +35,18 @@ export default function Terminal() {
     let hIdx = 0;
     let busy = false;
 
-    const ready = fetch('/api/content.json').then((r) => r.json()).then((c) => { content = c; });
+    let loadError = false;
+    const ready = fetch('/api/content.json')
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((c) => { content = c; })
+      .catch(() => { loadError = true; });
 
     const run = async (cmd: string) => {
       if (cmd.trim() === 'clear') { term.clear(); return; }
       if (cmd.trim() === 'exit') { location.href = '/'; return; }
       if (cmd.trim() === 'chat') { term.write(nl('\n  chat mode is coming soon. try: help\n\n')); return; }
       await ready;
+      if (loadError) { term.write(nl('  could not load content. try refreshing, or: curl wholden.com\n')); return; }
       const hit = resolveCommand(cmd);
       if (!hit) return;
       if ('error' in hit) { term.write(nl(`  ${hit.error}\n`)); return; }
@@ -53,6 +59,16 @@ export default function Terminal() {
 
     term.onData(async (data) => {
       if (busy) return;
+      if (data.startsWith('\x1b')) {
+        const arrow = data === '\x1b[A' ? -1 : data === '\x1b[B' ? 1 : 0;
+        if (arrow && history.length) {
+          hIdx = Math.min(history.length, Math.max(0, hIdx + arrow));
+          const next = history[hIdx] ?? '';
+          term.write('\b \b'.repeat(line.length) + next);
+          line = next;
+        }
+        return;
+      }
       for (const ch of data) {
         if (ch === '\r') {
           term.write('\r\n');
@@ -70,13 +86,6 @@ export default function Terminal() {
         } else if (ch >= ' ') {
           line += ch; term.write(ch);
         }
-      }
-      const arrow = data === '\x1b[A' ? -1 : data === '\x1b[B' ? 1 : 0;
-      if (arrow && history.length) {
-        hIdx = Math.min(history.length, Math.max(0, hIdx + arrow));
-        const next = history[hIdx] ?? '';
-        term.write('\b \b'.repeat(line.length) + next);
-        line = next;
       }
     });
 
