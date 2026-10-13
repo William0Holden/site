@@ -13,7 +13,7 @@
     "html_handling": "drop-trailing-slash",
     "not_found_handling": "404-page",
     // Worker runs first only where it adds behaviour: curl on these paths, /api, /mcp.
-    "run_worker_first": ["/", "/help", "/projects", "/resume", "/p/*", "/api/*", "/mcp"]
+    "run_worker_first": ["/", "/help", "/projects", "/resume", "/p/*", "/contact", "/api/*", "/mcp"]
   },
   "routes": [{ "pattern": "wholden.com", "custom_domain": true }],
   "observability": { "enabled": true }

@@ -1,0 +1,27 @@
+---
+import Base from '../layouts/Base.astro';
+import Terminal from '../components/Terminal';
+---
+<Base title="Terminal" description="Browse William's work from a terminal in your browser, or with curl.">
+  <section class="terminal-page">
+    <p class="eyebrow">Terminal</p>
+    <Terminal client:only="react" />
+    <noscript>
+      <p class="lede">The browser terminal needs JavaScript. From any shell, try <span class="mono">curl wholden.com</span>.</p>
+    </noscript>
+    <p class="muted">Also: <span class="mono">curl wholden.com/help</span></p>
+  </section>
+</Base>
+<style>
+  .terminal-page :global(.terminal) {
+    height: min(70vh, 36rem);
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #05070c;
+    padding: 0.5rem;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+  .muted { color: var(--muted); margin-top: 0.75rem; }
+</style>
