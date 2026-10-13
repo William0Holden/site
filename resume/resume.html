@@ -19,6 +19,7 @@
   p { margin: 2px 0; }
   .skills p { margin: 1px 0; }
   body:not(.private) .private-only { display: none; }
+  body.private .public-only { display: none; }
 </style>
 </head>
 <body>
@@ -27,18 +28,20 @@
 <a href="https://wholden.com">wholden.com</a> · <a href="https://www.linkedin.com/in/william-olan-holden">linkedin.com/in/william-olan-holden</a> · <a href="https://github.com/william0holden">github.com/william0holden</a></p>
 
 <h2>SUMMARY</h2>
-<p>AI Engineer building internal agentic and retrieval-augmented platforms at Aderant: three applications in seven months, each automating manual work for the teams behind the company's legal software. Background spans full-stack development, LLM orchestration, and deep learning for computer vision and NLP, with peer-reviewed research in <i>Computers and Electronics in Agriculture</i>.</p>
+<p>AI Engineer building internal agentic and retrieval-augmented applications at Aderant for the teams behind the company's legal software. Background spans full-stack development, LLM orchestration, and deep learning for computer vision and NLP, with peer-reviewed research in <i>Computers and Electronics in Agriculture</i>.</p>
 
 <h2>PROFESSIONAL EXPERIENCE</h2>
 <div class="row"><b>Aderant</b><span>Dec 2025 – Present</span></div>
 <div class="row sub"><span>AI Engineer, Docketing &amp; VI Engineering</span><span>Atlanta, GA (Hybrid)</span></div>
 <ul>
-  <li>Designed and delivered three internal AI applications in seven months, each replacing a manual process for the teams that maintain Aderant's docketing and legal-content products.</li>
-  <li>Built an internal change-detection platform that monitors 60,000+ court, agency, and judicial forms in the Forms Workflow content library, surfacing revisions to the content team as structured, reviewable diffs instead of manual periodic checks.</li>
-  <li>Architected an agentic court rules monitoring tool for Aderant's internal rules-monitoring team: crawls court websites across U.S. jurisdictions via Browserbase remote browsers, filters DOM noise to isolate true-positive changes, and applies Claude reasoning via Bedrock to judge whether a change materially affects a rule or filing deadline, sharply reducing false-positive review volume.</li>
-  <li>Developed an internal competitive intelligence hub for product, marketing, and sales: deduplicates external news signals alongside Aha! and Marketo data into a RAG pipeline over a vector store, letting teams chat with the corpus and auto-generate battlecards, newsletters, and briefs grounded in cited sources.</li>
-  <li>Embedded an SDLC agent across the team's internal tooling that intercepts inbound bug reports and enhancement requests, validates and normalizes them with an LLM, then routes clean, deduplicated tickets straight into GitHub Projects and Slack, removing manual triage from intake.</li>
-  <li>Stack: Python, TypeScript/React, AWS (Bedrock, AgentCore, Lambda, ECS/EKS, EC2, Aurora/RDS, S3, Route 53), Claude Platform, Browserbase, Terraform, Flux GitOps, Grafana.</li>
+  <li class="public-only">Build internal AI applications for the teams behind Aderant's legal software, focused on agentic workflows and retrieval-augmented generation.</li>
+  <li class="public-only">Stack: Python, TypeScript/React, AWS, Claude Platform, Terraform.</li>
+  <li class="private-only">Designed and delivered three internal AI applications in seven months, each replacing a manual process for the teams that maintain Aderant's docketing and legal-content products.</li>
+  <li class="private-only">Built an internal change-detection platform that monitors 60,000+ court, agency, and judicial forms in the Forms Workflow content library, surfacing revisions to the content team as structured, reviewable diffs instead of manual periodic checks.</li>
+  <li class="private-only">Architected an agentic court rules monitoring tool for Aderant's internal rules-monitoring team: crawls court websites across U.S. jurisdictions via Browserbase remote browsers, filters DOM noise to isolate true-positive changes, and applies Claude reasoning via Bedrock to judge whether a change materially affects a rule or filing deadline, sharply reducing false-positive review volume.</li>
+  <li class="private-only">Developed an internal competitive intelligence hub for product, marketing, and sales: deduplicates external news signals alongside Aha! and Marketo data into a RAG pipeline over a vector store, letting teams chat with the corpus and auto-generate battlecards, newsletters, and briefs grounded in cited sources.</li>
+  <li class="private-only">Embedded an SDLC agent across the team's internal tooling that intercepts inbound bug reports and enhancement requests, validates and normalizes them with an LLM, then routes clean, deduplicated tickets straight into GitHub Projects and Slack, removing manual triage from intake.</li>
+  <li class="private-only">Stack: Python, TypeScript/React, AWS (Bedrock, AgentCore, Lambda, ECS/EKS, EC2, Aurora/RDS, S3, Route 53), Claude Platform, Browserbase, Terraform, Flux GitOps, Grafana.</li>
 </ul>
 <div class="row"><b>University of Georgia, School of Computing</b><span>2024 – Dec 2025</span></div>
 <div class="row sub"><span>Graduate Research Assistant, Computer Vision</span><span>Athens, GA</span></div>

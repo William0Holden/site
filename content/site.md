@@ -16,8 +16,7 @@ links:
   - { label: Email, url: "mailto:williamhold02@gmail.com" }
 ---
 
-AI Engineer building internal agentic and retrieval-augmented platforms at Aderant: three
-applications in seven months, each automating manual work for the teams behind the company's
-legal software. Background spans full-stack development, LLM orchestration, and deep learning
-for computer vision and NLP, with peer-reviewed research in *Computers and Electronics in
-Agriculture*.
+AI Engineer at Aderant, building internal agentic and retrieval-augmented applications for the
+teams behind the company's legal software. Background spans full-stack development, LLM
+orchestration, and deep learning for computer vision and NLP, with peer-reviewed research in
+*Computers and Electronics in Agriculture*.
