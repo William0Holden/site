@@ -5,7 +5,7 @@ kind: research
 summary: A spatiotemporal video encoder with metadata fusion (X3D 3D-CNN + YOLO tracking) for automated broiler-chicken behavior recognition. Published in Computers and Electronics in Agriculture.
 period: 2024 – Dec 2025
 role: Graduate Research Assistant, Computer Vision · UGA School of Computing
-stack: [PyTorch, X3D, YOLOv11-Pose, YOLO tracking, OpenCV, Python]
+stack: [PyTorch, X3D, YOLOv11-Pose, ByteTrack, OpenCV, Python]
 links:
   - { label: "Paper (DOI)", url: "https://doi.org/10.1016/j.compag.2026.112159" }
   - { label: "Code", url: "https://github.com/William0Holden/chicken_action_recognition" }
@@ -20,7 +20,7 @@ Dr. Guoming Li), in collaboration with the University of Ghana: recognizing what
 broiler chickens are doing from ordinary smartphone video, and turning it into movement and
 behavior analytics that compare Ross 308 broilers with African local chickens.
 
-- Built a spatiotemporal video encoder with metadata fusion (X3D 3D-CNN + YOLO tracking) for
+- Built a spatiotemporal video encoder with metadata fusion (X3D 3D-CNN + YOLOv11-Pose detection with ByteTrack tracking) for
   automated broiler-chicken behavior recognition from smartphone farm footage.
 - **87.08% test accuracy** (macro F1 0.871) on behavior recognition; drinking F1 0.949, eating
   F1 0.928. Benchmarked against SlowFast, I3D, and TimeSformer.
