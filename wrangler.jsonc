@@ -3,6 +3,8 @@
   "name": "wholden-site",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
+  // Lets the chat stop generating (and spending) when the visitor disconnects.
+  "compatibility_flags": ["enable_request_signal"],
   // Dashboard-set vars/secrets survive deploys.
   "keep_vars": true,
   // Always build, even if the Workers Builds dashboard has no build command.
@@ -13,8 +15,11 @@
     "html_handling": "drop-trailing-slash",
     "not_found_handling": "404-page",
     // Worker runs first only where it adds behaviour: curl on these paths, /api, /mcp.
-    "run_worker_first": ["/", "/help", "/projects", "/resume", "/p/*", "/contact", "/api/*", "/mcp"]
+    "run_worker_first": ["/", "/help", "/projects", "/resume", "/p/*", "/contact", "/api/*", "/mcp", "/unlock"]
   },
+  // Rate limits + global daily LLM budget (SQLite-backed Durable Object, free tier).
+  "durable_objects": { "bindings": [{ "name": "LIMITER", "class_name": "Limiter" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Limiter"] }],
   "routes": [{ "pattern": "wholden.com", "custom_domain": true }],
   "observability": { "enabled": true }
 }

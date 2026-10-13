@@ -2,14 +2,18 @@
 import { Image } from 'astro:assets';
 import Base from '../layouts/Base.astro';
 import ProjectCard from '../components/ProjectCard.astro';
+import HeroField from '../components/HeroField.astro';
+import ThemeHover from '../components/ThemeHover.astro';
 import { getProjects, getSite } from '../lib';
 import headshot from '../assets/headshot.jpg';
+import Chat from '../chat/Chat';
 
 const site = await getSite();
 const featured = (await getProjects()).filter((p) => p.data.featured);
 ---
 <Base>
   <section class="hero">
+    <HeroField />
     <div>
       <p class="eyebrow">{site.data.role} · {site.data.location}</p>
       <h1>{site.data.name}</h1>
@@ -20,9 +24,13 @@ const featured = (await getProjects()).filter((p) => p.data.featured);
   </section>
   <h2>Selected work</h2>
   <div class="grid">{featured.map((p) => <ProjectCard project={p} />)}</div>
+  <h2 id="ask">Ask about my work</h2>
+  <Chat client:visible variant="home" />
+  <noscript><p class="lede">Chat needs JavaScript. The <a href="/projects">project pages</a> have everything it knows.</p></noscript>
+  <ThemeHover />
 </Base>
 <style>
-  .hero { display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: center; padding-block: 2rem; }
+  .hero { position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: center; padding-block: 2rem; }
   .headshot { border-radius: 18px; border: 1px solid var(--border); width: 200px; height: auto; }
   @media (max-width: 640px) { .hero { grid-template-columns: 1fr; } .headshot { width: 140px; order: -1; } }
 </style>

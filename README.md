@@ -22,14 +22,20 @@ Cloudflare Workers Builds deploys `main` automatically (production branch `main`
 ## Environment variables and secrets
 
 Runtime secrets live in Cloudflare → Worker → Settings → Variables and Secrets (not Build
-variables). `keep_vars: true` keeps dashboard values across deploys. None are needed for Phase 1.
+variables). `keep_vars: true` keeps dashboard values across deploys. Locally they live in
+`~/.config/wholden/secrets.env` (written by `scripts/store-secret.sh NAME`) and `.dev.vars`.
 
-| Name | Kind | Phase | Purpose |
-|---|---|---|---|
-| `PUBLIC_TURNSTILE_SITE_KEY` | build var | 2 | Turnstile widget on the chat |
-| `TURNSTILE_SECRET_KEY` | secret | 2 | Verify Turnstile tokens |
-| `OPENROUTER_API_KEY` | secret | 2 | LLM calls (set a credit limit on the key in OpenRouter) |
-| `LLM_MODEL` | var | 2 | OpenRouter model id, swappable without code changes |
-| `DAILY_LLM_BUDGET_USD` | var | 2 | Global daily spend cap (default 2) |
-| `UNLOCK_SIGNING_SECRET` | secret | 2 | HMAC for `/unlock?code=` friend links (`openssl rand -hex 32`) |
+| Name | Kind | Purpose |
+|---|---|---|
+| `OPENROUTER_API_KEY` | secret | LLM calls (set a credit limit on the key in OpenRouter) |
+| `SESSION_SIGNING_SECRET` | secret | HMAC for the chat session cookie and visitor ids (`openssl rand -hex 32`) |
+| `UNLOCK_SIGNING_SECRET` | secret | HMAC for `/unlock?code=` friend links; `scripts/unlock-link.sh` prints the link |
+| `TURNSTILE_SECRET_KEY` | secret | Verify Turnstile tokens (chat skips Turnstile while unset) |
+| `TURNSTILE_SITE_KEY` | var | Public Turnstile site key, served by `/api/chat/status` |
+| `LLM_MODEL` / `LLM_FALLBACK_MODEL` | var | OpenRouter model ids (default `anthropic/claude-haiku-5.5`, fallback `qwen/qwen3.7-flash`) |
+| `DAILY_LLM_BUDGET_USD` | var | Global daily spend cap (default 2; `0` disables chat) |
+
+Chat limits (per visitor/conversation) are constants in `worker/config.ts`. Check a model with
+`set -a; . ~/.config/wholden/secrets.env; set +a; node scripts/eval-tools.ts [model]`.
+
 | `SSH_CHAT_TOKEN` | secret | 3 | Server-to-server token the SSH app uses for `/api/chat` |

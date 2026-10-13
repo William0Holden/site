@@ -1,10 +1,12 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-interface Props { project: CollectionEntry<'projects'> }
+interface Props { project: CollectionEntry<'projects'>; level?: 2 | 3 }
 const { data } = Astro.props.project;
+const Heading = Astro.props.level === 2 ? 'h2' : 'h3';
 ---
-<a class="card" href={`/p/${data.slug}`} style={`--card-accent:${data.theme.accent}`}>
+<a class="card" href={`/p/${data.slug}`} style={`--card-accent:${data.theme.accent}`}
+  data-accent={data.theme.accent} data-accent2={data.theme.accent2} data-bg={data.theme.bg}>
   <span class="eyebrow" style={`color:${data.theme.accent}`}>{data.kind.replace('-', ' ')} · {data.period}</span>
-  <h3 style={`view-transition-name:title-${data.slug}`}>{data.title}</h3>
+  <Heading style={`view-transition-name:title-${data.slug}`}>{data.title}</Heading>
   <p>{data.summary}</p>
 </a>

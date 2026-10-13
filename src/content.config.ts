@@ -37,6 +37,7 @@ const site = defineCollection({
     location: z.string(),
     tagline: z.string(),
     domain: z.string(),
+    awards: z.array(z.string()).default([]),
     links: z.array(link),
   }),
 });

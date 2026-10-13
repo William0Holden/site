@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+import Chat from '../chat/Chat';
+---
+<Base title="Chat" description="Ask an AI assistant about William's projects, research, and resume.">
+  <p class="eyebrow">Chat</p>
+  <h1>Ask about my work</h1>
+  <Chat client:load variant="page" />
+  <noscript><p class="lede">The chat needs JavaScript. Everything it knows is on the <a href="/projects">project pages</a>, or try <span class="mono">curl wholden.com</span>.</p></noscript>
+</Base>
