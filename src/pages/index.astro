@@ -4,6 +4,7 @@ import Base from '../layouts/Base.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 import { getProjects, getSite } from '../lib';
 import headshot from '../assets/headshot.jpg';
+import Chat from '../chat/Chat';
 
 const site = await getSite();
 const featured = (await getProjects()).filter((p) => p.data.featured);
@@ -20,6 +21,9 @@ const featured = (await getProjects()).filter((p) => p.data.featured);
   </section>
   <h2>Selected work</h2>
   <div class="grid">{featured.map((p) => <ProjectCard project={p} />)}</div>
+  <h2 id="ask">Ask about my work</h2>
+  <Chat client:visible variant="home" />
+  <noscript><p class="lede">Chat needs JavaScript. The <a href="/projects">project pages</a> have everything it knows.</p></noscript>
 </Base>
 <style>
   .hero { display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: center; padding-block: 2rem; }

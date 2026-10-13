@@ -16,12 +16,7 @@ const { Content } = await render(site);
       <li><strong>B.S. Computer Science</strong>, UGA Honors Program, Presidential Scholar, Dean's List, Dec 2024</li>
     </ul>
     <h2>Awards</h2>
-    <ul>
-      <li><strong>1st place</strong>, UGA AI in Livestock and Poultry Farming Conference poster competition (2025)</li>
-      <li>Publication in <em>Computers and Electronics in Agriculture</em> (2026, IF 10.3)</li>
-      <li>Rangers Scholarship Fund Merit Scholarship (2022)</li>
-      <li>Presidential Scholar and Dean's List, University of Georgia</li>
-    </ul>
+    <ul>{site.data.awards.map((a) => <li>{a}</li>)}</ul>
     <h2>Earlier experience &amp; leadership</h2>
     <ul>
       <li><strong>Resident Assistant</strong>, UGA Housing (2022–2025): responsible for communities of 30–75 residents, from community building to crisis response.</li>
