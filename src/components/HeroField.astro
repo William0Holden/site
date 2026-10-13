@@ -1,0 +1,109 @@
+---
+// Decorative flow field behind the hero. Static frame under reduced motion; paused off-screen.
+---
+<canvas class="hero-field" aria-hidden="true"></canvas>
+<style>
+  .hero-field {
+    position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse at 40% 50%, #000 35%, transparent 80%);
+    mask-image: radial-gradient(ellipse at 40% 50%, #000 35%, transparent 80%);
+  }
+</style>
+<script>
+  const canvas = document.querySelector<HTMLCanvasElement>('canvas.hero-field');
+  const ctx = canvas?.getContext('2d');
+  if (canvas && ctx) {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+    type P = { x: number; y: number; vx: number; vy: number; c: number; o: number; r: number };
+    let pts: P[] = [];
+    let w = 0, h = 0, t = 0, raf = 0, visible = true, frame = 0;
+    let colors = ['#7aa2ff', '#b48cff'];
+    const mouse = { x: -1e4, y: -1e4 };
+
+    const readColors = () => {
+      const css = getComputedStyle(document.documentElement);
+      colors = [css.getPropertyValue('--accent').trim() || colors[0], css.getPropertyValue('--accent2').trim() || colors[1]];
+    };
+
+    // Deterministic seed so the static (reduced-motion) frame is stable.
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+
+    const resize = () => {
+      const r = canvas.getBoundingClientRect();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      w = r.width; h = r.height;
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const n = Math.min(90, Math.round((w * h) / 7000));
+      seed = 7;
+      pts = Array.from({ length: n }, () => ({ x: rand() * w, y: rand() * h, vx: 0, vy: 0, c: rand() < 0.6 ? 0 : 1, o: (rand() - 0.5) * 2.4, r: 1.2 + rand() * 1.4 }));
+    };
+
+    const flow = (x: number, y: number) =>
+      Math.sin(x * 0.006 + t * 0.15) * Math.PI + Math.cos(y * 0.008 - t * 0.1) * Math.PI;
+
+    const step = () => {
+      for (const p of pts) {
+        const a = flow(p.x, p.y) + p.o;
+        p.vx = p.vx * 0.92 + Math.cos(a) * 0.05;
+        p.vy = p.vy * 0.92 + Math.sin(a) * 0.05;
+        const dx = p.x - mouse.x, dy = p.y - mouse.y, d2 = dx * dx + dy * dy;
+        if (d2 < 14400 && d2 > 1) { const f = (1 - d2 / 14400) * 0.6 / Math.sqrt(d2); p.vx += dx * f; p.vy += dy * f; }
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < -10) p.x = w + 10; else if (p.x > w + 10) p.x = -10;
+        if (p.y < -10) p.y = h + 10; else if (p.y > h + 10) p.y = -10;
+      }
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.lineWidth = 1;
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        for (let j = i + 1; j < pts.length; j++) {
+          const b = pts[j], dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+          if (d2 < 6400) {
+            ctx.globalAlpha = (1 - d2 / 6400) * 0.35;
+            ctx.strokeStyle = colors[a.c];
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          }
+        }
+      }
+      for (const p of pts) {
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = colors[p.c];
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    const tick = () => {
+      raf = 0;
+      t += 1 / 60;
+      if (++frame % 15 === 0) readColors();
+      step(); draw();
+      schedule();
+    };
+    const schedule = () => {
+      if (!raf && visible && !document.hidden && !reduce.matches) raf = requestAnimationFrame(tick);
+    };
+    const stop = () => { if (raf) cancelAnimationFrame(raf); raf = 0; };
+    const staticFrame = () => { readColors(); for (let i = 0; i < 120; i++) { t += 1 / 60; step(); } draw(); };
+
+    const start = () => {
+      resize();
+      if (reduce.matches) staticFrame(); else { readColors(); schedule(); }
+      new ResizeObserver(() => { resize(); if (reduce.matches) staticFrame(); else draw(); }).observe(canvas);
+      new IntersectionObserver(([e]) => { visible = e.isIntersecting; visible ? schedule() : stop(); }).observe(canvas);
+      document.addEventListener('visibilitychange', () => (document.hidden ? stop() : schedule()));
+      reduce.addEventListener('change', () => { stop(); reduce.matches ? staticFrame() : schedule(); });
+      window.addEventListener('pointermove', (e) => {
+        const r = canvas.getBoundingClientRect();
+        mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
+      }, { passive: true });
+      document.addEventListener('pointerleave', () => { mouse.x = mouse.y = -1e4; });
+    };
+    if ('requestIdleCallback' in window) requestIdleCallback(start, { timeout: 1500 }); else setTimeout(start, 200);
+  }
+</script>
