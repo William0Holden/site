@@ -162,6 +162,7 @@ export const tools: Tool[] = [
 ];
 
 
+let ghCache: { at: number; events: unknown[] } | null = null; // GitHub's unauthenticated limit is 60/hour
 const mediaFor = (ctx: Ctx, ids: string[]) => ids.map((id) => ctx.content.media.find((m) => m.id === id)).filter((m): m is Media => Boolean(m));
 const words = (s: string) => s.toLowerCase().match(/[a-z0-9+#.-]{2,}/g) ?? [];
 const THEMES: Record<string, { accent: string; accent2: string; bg: string }> = {
@@ -206,10 +207,13 @@ tools.push(
     async handler(_i, ctx) {
       type Ev = { type: string; repo: { name: string }; created_at: string; payload?: { commits?: unknown[] } };
       let events: Ev[] = [];
-      try {
-        const res = await fetch('https://api.github.com/users/William0Holden/events/public?per_page=30', { headers: { 'user-agent': 'wholden.com', accept: 'application/vnd.github+json' } });
-        if (res.ok) events = await res.json();
-      } catch { /* offline: fall through */ }
+      if (ghCache && Date.now() - ghCache.at < 5 * 60_000) events = ghCache.events as Ev[];
+      else {
+        try {
+          const res = await fetch('https://api.github.com/users/William0Holden/events/public?per_page=30', { headers: { 'user-agent': 'wholden.com', accept: 'application/vnd.github+json' } });
+          if (res.ok) { events = await res.json(); ghCache = { at: Date.now(), events }; }
+        } catch { /* offline: fall through */ }
+      }
       const items = events
         .filter((e) => ['PushEvent', 'CreateEvent', 'PublicEvent', 'ReleaseEvent'].includes(e.type))
         .slice(0, 8)
@@ -288,10 +292,10 @@ tools.push(
         .filter((x) => x.score > 0)
         .sort((a, b) => b.score - a.score)[0];
       if (hit) return { text: `${hit.e.title}\n${hit.e.body}` };
-      const gatedMatch = (ctx.personal ?? []).some((e) => e.tier === 'gated' && words([e.title, e.tags.join(' ')].join(' ')).some((w) => q.has(w)));
-      if (gatedMatch) return { text: "That one's just for friends — it needs an unlock link from William." };
+      // Same reply whether or not a friends-only entry matched, so topics can't be probed.
       const topics = entries.map((e) => e.title).join(', ');
-      return { text: topics ? `Nothing on "${topic}". Topics William has shared: ${topics}.` : "William hasn't written anything personal here yet." };
+      const friends = !ctx.unlocked && (ctx.personal ?? []).some((e) => e.tier === 'gated') ? ' Some things are just for friends with an unlock link from William.' : '';
+      return { text: (topics ? `Nothing on "${topic}". Topics William has shared: ${topics}.` : "William hasn't shared anything on that here.") + friends };
     },
   }),
 );

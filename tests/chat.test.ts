@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { signToken, verifyToken, unlockCode, verifyUnlockCode } from '../worker/auth.ts';
+import { signToken, verifyToken, unlockCode, verifyUnlockCode, signSession, verifySession, ipKey } from '../worker/auth.ts';
 import { tools, manifest, type Content, type Ctx, type PersonalEntry } from '../tools/registry.ts';
 import { systemPrompt, toolDefinitions } from '../worker/prompt.ts';
 
@@ -62,4 +62,25 @@ test('search_corpus finds awards and project details', async () => {
   const ctx: Ctx = { content, host: 'x', ansi: false };
   assert.match((await s.handler({ query: 'awards' }, ctx)).text, /1st place/i);
   assert.match((await s.handler({ query: 'Terraform' }, ctx)).text, /aderant/i);
+});
+
+test('session tokens carry a verifiable random id', async () => {
+  const t = await signSession(SECRET, 60);
+  const id = await verifySession(SECRET, t);
+  assert.ok(id && id.length >= 16);
+  assert.equal(await verifySession(SECRET, t.replace(id!, 'f'.repeat(id!.length))), null);
+  assert.notEqual(await verifySession(SECRET, await signSession(SECRET, 60)), id);
+});
+
+test('IPv6 clients are keyed by /64, IPv4 by address', () => {
+  assert.equal(ipKey('2001:db8:1:2:aaaa:bbbb:cccc:dddd'), ipKey('2001:db8:1:2:1111:2222:3333:4444'));
+  assert.notEqual(ipKey('2001:db8:1:2::1'), ipKey('2001:db8:1:3::1'));
+  assert.equal(ipKey('203.0.113.7'), '203.0.113.7');
+});
+
+test('ask_about gives the same reply for gated and unknown topics', async () => {
+  const locked: Ctx = { content, host: 'x', ansi: false, personal, unlocked: false };
+  const gated = (await ask.handler({ topic: 'weekend' }, locked)).text.replace(/"[^"]*"/, '""');
+  const unknown = (await ask.handler({ topic: 'astronomy' }, locked)).text.replace(/"[^"]*"/, '""');
+  assert.equal(gated, unknown);
 });

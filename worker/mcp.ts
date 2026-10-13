@@ -11,6 +11,8 @@ const ok = (id: Rpc['id'], result: unknown) => ({ jsonrpc: '2.0', id, result });
 const fail = (id: Rpc['id'], code: number, message: string) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
 
 async function dispatch(msg: Rpc, content: Content, host: string) {
+  if (!msg || typeof msg !== 'object' || typeof msg.method !== 'string') return fail(null, -32600, 'Invalid Request');
+  if (msg.id === undefined || msg.id === null) return null; // notifications get no response
   switch (msg.method) {
     case 'initialize':
       return ok(msg.id, {
@@ -37,7 +39,7 @@ async function dispatch(msg: Rpc, content: Content, host: string) {
       return ok(msg.id, { content: [{ type: 'text', text: out.text.trim() }], isError: false });
     }
     default:
-      return msg.id === undefined ? null : fail(msg.id, -32601, `Method not found: ${msg.method}`);
+      return fail(msg.id, -32601, `Method not found: ${msg.method}`);
   }
 }
 
@@ -47,7 +49,7 @@ export async function handleMcp(req: Request, content: Content, host: string): P
   if (req.method !== 'POST') return new Response('MCP endpoint: POST JSON-RPC here.', { status: 405, headers: { allow: 'POST', ...cors } });
   let body: Rpc | Rpc[];
   try { body = await req.json(); } catch { return Response.json(fail(null, -32700, 'Parse error'), { status: 400, headers: cors }); }
-  const batch = Array.isArray(body) ? body.slice(0, 20) : [body];
+  const batch = Array.isArray(body) ? body.slice(0, 10) : [body];
   const results = (await Promise.all(batch.map((m) => dispatch(m, content, host)))).filter(Boolean);
   if (!results.length) return new Response(null, { status: 202, headers: cors });
   return Response.json(Array.isArray(body) ? results : results[0], { headers: cors });

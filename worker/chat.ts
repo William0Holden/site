@@ -2,7 +2,7 @@
 // and streams Server-Sent Events: text deltas, tool notices, UI actions, done/error.
 import type { Env } from './index';
 import { LIMITS, DEFAULT_MODEL, DEFAULT_FALLBACK } from './config';
-import { cookie, getCookie, signToken, verifyToken, verifyTurnstile, visitorId } from './auth';
+import { cookie, getCookie, ipKey, signSession, verifySession, verifyToken, verifyTurnstile, visitorId } from './auth';
 import { streamRound, type ChatMessage } from './llm';
 import { chatTools, systemPrompt, toolDefinitions } from './prompt';
 import type { Content, Ctx, PersonalEntry } from '../tools/registry';
@@ -43,6 +43,7 @@ type InMsg = { role: 'user' | 'assistant'; content: string };
 function validate(body: unknown): { ok: true; messages: InMsg[]; turnstileToken?: string } | { ok: false; status: number; error: string } {
   const b = body as { messages?: unknown; turnstileToken?: unknown };
   if (!Array.isArray(b?.messages) || b.messages.length === 0) return { ok: false, status: 400, error: 'bad_request' };
+  if (b.messages.length > 2 * LIMITS.maxUserTurns + 2) return { ok: false, status: 429, error: 'conversation_limit' };
   const messages: InMsg[] = [];
   for (const m of b.messages as { role?: unknown; content?: unknown }[]) {
     if ((m?.role !== 'user' && m?.role !== 'assistant') || typeof m.content !== 'string') return { ok: false, status: 400, error: 'bad_request' };
@@ -64,6 +65,25 @@ function validate(body: unknown): { ok: true; messages: InMsg[]; turnstileToken?
   return { ok: true, messages: kept, turnstileToken: typeof b.turnstileToken === 'string' ? b.turnstileToken : undefined };
 }
 
+async function readCapped(req: Request, max: number): Promise<string | null> {
+  if (Number(req.headers.get('content-length') ?? 0) > max) return null;
+  if (!req.body) return '';
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) { await reader.cancel(); return null; }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let o = 0;
+  for (const c of chunks) { all.set(c, o); o += c.byteLength; }
+  return new TextDecoder().decode(all);
+}
+
 function sameOrigin(req: Request, url: URL) {
   const origin = req.headers.get('origin');
   return origin === url.origin;
@@ -74,10 +94,12 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   if (!sameOrigin(req, url)) return json({ error: 'forbidden' }, 403);
   if (!env.OPENROUTER_API_KEY || !env.SESSION_SIGNING_SECRET) return json({ error: 'not_configured' }, 503);
-  if (Number(req.headers.get('content-length') ?? 0) > 64_000) return json({ error: 'too_large' }, 413);
-
   let body: unknown;
-  try { body = await req.json(); } catch { return json({ error: 'bad_request' }, 400); }
+  try {
+    const raw = await readCapped(req, LIMITS.maxBodyBytes);
+    if (raw === null) return json({ error: 'too_large' }, 413);
+    body = JSON.parse(raw);
+  } catch { return json({ error: 'bad_request' }, 400); }
   const v = validate(body);
   if (!v.ok) return json({ error: v.error }, v.status);
 
@@ -85,16 +107,20 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
   const headers: Record<string, string> = {};
 
   // Bot check: a valid session cookie, or a fresh Turnstile token that earns one.
-  if (env.TURNSTILE_SECRET_KEY) {
-    const session = getCookie(req, 'chat_session');
-    if (!(await verifyToken(env.SESSION_SIGNING_SECRET, 'chat', session))) {
-      if (!v.turnstileToken || !(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, v.turnstileToken, ip))) return json({ error: 'turnstile_required' }, 403);
-      headers['set-cookie'] = cookie('chat_session', await signToken(env.SESSION_SIGNING_SECRET, 'chat', LIMITS.sessionTtlSec), LIMITS.sessionTtlSec);
-    }
+  let sessionId = await verifySession(env.SESSION_SIGNING_SECRET, getCookie(req, 'chat_session'));
+  if (env.TURNSTILE_SECRET_KEY && !sessionId) {
+    if (!v.turnstileToken || !(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, v.turnstileToken, ip))) return json({ error: 'turnstile_required' }, 403);
+    const token = await signSession(env.SESSION_SIGNING_SECRET, LIMITS.sessionTtlSec);
+    sessionId = token.split('.')[1];
+    headers['set-cookie'] = cookie('chat_session', token, LIMITS.sessionTtlSec);
   }
 
+  // Limits apply per network (IPv6 /64) and, once verified, per session as well.
+  const visitors = [await visitorId(env.SESSION_SIGNING_SECRET, ipKey(ip))];
+  if (sessionId) visitors.push(`s:${sessionId}`);
   const lim = limiter(env);
-  const r = await lim.reserve(await visitorId(env.SESSION_SIGNING_SECRET, ip), budget(env));
+  const estimate = LIMITS.requestEstimateUsd;
+  const r = await lim.reserve(visitors, budget(env), estimate);
   if (!r.ok) return json({ error: r.reason, retryAfterSec: r.retryAfterSec }, 429, { 'retry-after': String(r.retryAfterSec), ...headers });
 
   const unlocked = await verifyToken(env.UNLOCK_SIGNING_SECRET, 'unlock', getCookie(req, 'unlock'));
@@ -113,17 +139,20 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
     ];
     const defs = toolDefinitions();
     const available = chatTools();
+    let spent = 0;
+    let toolChars = 0;
     try {
       for (let round = 0; round < LIMITS.maxToolRounds; round++) {
-        const last = round === LIMITS.maxToolRounds - 1;
+        const last = round === LIMITS.maxToolRounds - 1 || toolChars >= LIMITS.maxToolOutputChars;
         const res = await streamRound({
-          apiKey: env.OPENROUTER_API_KEY!, models: models(env), messages, tools: last ? [] : defs,
+          apiKey: env.OPENROUTER_API_KEY!, models: models(env), messages, tools: defs, toolChoice: last ? 'none' : 'auto',
           onText: (t) => send('text', { t }), signal: req.signal, referer: url.origin,
         });
-        ctx.waitUntil(lim.record(res.costUsd));
-        if (!res.toolCalls.length) break;
-        messages.push({ role: 'assistant', content: res.text || null, tool_calls: res.toolCalls });
-        for (const call of res.toolCalls) {
+        spent += res.costUsd;
+        if (!res.toolCalls.length || last) break;
+        const calls = res.toolCalls.slice(0, LIMITS.maxToolCallsPerRound);
+        messages.push({ role: 'assistant', content: res.text || null, tool_calls: calls });
+        for (const call of calls) {
           const t = available.find((x) => x.name === call.function.name);
           let output: string;
           if (!t) output = `Unknown tool ${call.function.name}.`;
@@ -137,9 +166,10 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
               send('tool', { name: t.name, hidden: t.visibility === 'hidden' });
               const out = await t.handler(parsed.data, toolCtx);
               if (out.ui) send('ui', out.ui);
-              output = out.text.slice(0, 4000);
+              output = out.text.slice(0, Math.max(200, Math.min(4000, LIMITS.maxToolOutputChars - toolChars)));
             }
           }
+          toolChars += output.length;
           messages.push({ role: 'tool', tool_call_id: call.id, content: output });
         }
       }
@@ -150,6 +180,9 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
         send('error', { message: 'The assistant hit a snag. Try again in a moment.' });
       }
     } finally {
+      // Settle the pre-charge with the real cost. If this never runs (isolate killed), the
+      // worst-case estimate stays charged, which errs on the safe side.
+      await lim.adjust(spent - estimate).catch(() => {});
       writer.close().catch(() => {});
     }
   };

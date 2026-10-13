@@ -7,6 +7,11 @@ export const LIMITS = {
   maxHistoryChars: 16_000,
   maxOutputTokens: 700,
   maxToolRounds: 4,
+  maxToolCallsPerRound: 3,
+  maxToolOutputChars: 12_000, // per request, across all tool results
+  maxBodyBytes: 64_000,
+  // Worst-case cost pre-charged to the daily budget at reserve time, refunded on settle.
+  requestEstimateUsd: 0.02,
   defaultDailyBudgetUsd: 2,
   sessionTtlSec: 24 * 3600,
   unlockTtlSec: 90 * 24 * 3600,

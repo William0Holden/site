@@ -44,11 +44,14 @@ const personalDir = join(root, 'content/personal');
 const personal = existsSync(personalDir)
   ? readdirSync(personalDir)
       .filter((f) => f.endsWith('.md') && f !== 'README.md')
-      .map((f) => read(`content/personal/${f}`))
-      .map(({ data, content }, i) => ({
-        slug: data.slug ?? String(i), title: data.title, tier: data.tier === 'gated' ? 'gated' : 'personal',
-        tags: data.tags ?? [], body: stripComments(content),
-      }))
+      .map((f) => ({ f, ...read(`content/personal/${f}`) }))
+      .filter(({ data }) => !data.draft)
+      .map(({ f, data, content }) => {
+        // Fail closed: anything not explicitly `personal` is friends-only; unknown tiers break the build.
+        const tier = data.tier ?? 'gated';
+        if (tier !== 'personal' && tier !== 'gated') throw new Error(`content/personal/${f}: unknown tier "${tier}"`);
+        return { slug: data.slug ?? f.replace(/\.md$/, ''), title: data.title, tier, tags: data.tags ?? [], body: stripComments(content) };
+      })
   : [];
 mkdirSync(join(root, 'worker/generated'), { recursive: true });
 writeFileSync(join(root, 'worker/generated/personal.json'), JSON.stringify(personal));

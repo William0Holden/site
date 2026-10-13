@@ -3,6 +3,8 @@
   "name": "wholden-site",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
+  // Lets the chat stop generating (and spending) when the visitor disconnects.
+  "compatibility_flags": ["enable_request_signal"],
   // Dashboard-set vars/secrets survive deploys.
   "keep_vars": true,
   // Always build, even if the Workers Builds dashboard has no build command.

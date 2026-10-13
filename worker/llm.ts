@@ -11,7 +11,7 @@ export type ToolCall = { id: string; type: 'function'; function: { name: string;
 export type RoundResult = { text: string; toolCalls: ToolCall[]; costUsd: number; finish: string | null };
 
 export async function streamRound(opts: {
-  apiKey: string; models: string[]; messages: ChatMessage[]; tools: unknown[];
+  apiKey: string; models: string[]; messages: ChatMessage[]; tools: unknown[]; toolChoice?: 'auto' | 'none';
   onText: (delta: string) => void; signal?: AbortSignal; referer?: string;
 }): Promise<RoundResult> {
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -28,6 +28,7 @@ export async function streamRound(opts: {
       models: opts.models,
       messages: opts.messages,
       tools: opts.tools,
+      tool_choice: opts.toolChoice ?? 'auto',
       stream: true,
       max_tokens: LIMITS.maxOutputTokens,
       temperature: 0.4,
@@ -63,7 +64,9 @@ export async function streamRound(opts: {
       const d = choice.delta ?? {};
       if (typeof d.content === 'string' && d.content) { text += d.content; opts.onText(d.content); }
       for (const tc of d.tool_calls ?? []) {
-        const i = tc.index ?? 0;
+        // Some providers omit `index` and send each call whole; a new id means a new call.
+        let i = typeof tc.index === 'number' ? tc.index : Math.max(0, calls.length - 1);
+        if (typeof tc.index !== 'number' && tc.id && calls[i]?.id && calls[i].id !== tc.id) i = calls.length;
         calls[i] ??= { id: '', type: 'function', function: { name: '', arguments: '' } };
         if (tc.id) calls[i].id = tc.id;
         if (tc.function?.name) calls[i].function.name += tc.function.name;
