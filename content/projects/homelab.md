@@ -5,7 +5,8 @@ kind: homelab
 summary: Self-hosted media, personal cloud, and local AI on my own hardware, with custom MCP servers that let an AI assistant operate all of it.
 period: Dec 2020 – present
 stack: [Docker, Jellyfin, Nextcloud, Ollama, LibreChat, MCP, Python, Cloudflare Tunnel]
-links: []
+links:
+  - { label: "Code", url: "https://github.com/William0Holden/homelab" }
 media: [first-build-2020]
 featured: false
 order: 9

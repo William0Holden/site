@@ -61,7 +61,7 @@ test('search_corpus finds awards and project details', async () => {
   const s = tools.find((t) => t.name === 'search_corpus')!;
   const ctx: Ctx = { content, host: 'x', ansi: false };
   assert.match((await s.handler({ query: 'awards' }, ctx)).text, /1st place/i);
-  assert.match((await s.handler({ query: 'Terraform' }, ctx)).text, /aderant/i);
+  assert.match((await s.handler({ query: 'YOLOv12' }, ctx)).text, /decktection/i);
 });
 
 test('session tokens carry a verifiable random id', async () => {
@@ -83,4 +83,23 @@ test('ask_about gives the same reply for gated and unknown topics', async () => 
   const gated = (await ask.handler({ topic: 'weekend' }, locked)).text.replace(/"[^"]*"/, '""');
   const unknown = (await ask.handler({ topic: 'astronomy' }, locked)).text.replace(/"[^"]*"/, '""');
   assert.equal(gated, unknown);
+});
+
+test('proof-of-work verifies only correct, unexpired, signed solutions', async () => {
+  const { issuePow, verifyPow, leadingZeroBits } = await import('../worker/auth.ts');
+  assert.equal(leadingZeroBits(new Uint8Array([0, 0x0f])), 12);
+  const bits = 8;
+  const challenge = await issuePow(SECRET, 60);
+  let counter = 0;
+  const enc = new TextEncoder();
+  for (;; counter++) {
+    const d = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(`${challenge}:${counter}`)));
+    if (leadingZeroBits(d) >= bits) break;
+  }
+  assert.ok(await verifyPow(SECRET, challenge, String(counter), bits));
+  assert.equal(await verifyPow(SECRET, challenge, String(counter), 40), null);
+  assert.equal(await verifyPow('other', challenge, String(counter), bits), null);
+  const old = await issuePow(SECRET, 60, Date.now() - 3600_000);
+  assert.equal(await verifyPow(SECRET, old, '0', 0), null);
+  assert.equal(await verifyPow(SECRET, challenge, '1e3', bits), null);
 });
