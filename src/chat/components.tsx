@@ -92,7 +92,22 @@ function GitHubActivity({ props }: Props) {
   );
 }
 
-const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
+function WebSources({ props }: Props) {
+  const list = (Array.isArray(props.sources) ? props.sources : []) as { url?: unknown; title?: unknown }[];
+  const safe = list
+    .map((s) => { try { const u = new URL(String(s.url)); return /^https?:$/.test(u.protocol) ? { url: u.href, title: String(s.title ?? u.hostname), host: u.hostname } : null; } catch { return null; } })
+    .filter((s): s is { url: string; title: string; host: string } => Boolean(s))
+    .slice(0, 5);
+  if (!safe.length) return null;
+  return (
+    <div className="cm-sources">
+      <span className="cm-eyebrow">From the web</span>
+      <ul>{safe.map((s) => <li key={s.url}><a href={s.url} target="_blank" rel="noopener noreferrer nofollow">{s.title}</a> <span className="cm-muted">{s.host}</span></li>)}</ul>
+    </div>
+  );
+}
+
+const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
 
 export function UiBlock({ content, ui }: { content: Content | null; ui: { component: string; props: Record<string, unknown> } }) {
   const C = REGISTRY[ui.component];

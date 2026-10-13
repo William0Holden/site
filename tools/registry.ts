@@ -20,7 +20,7 @@ export type Media = {
 export type PersonalEntry = { slug: string; title: string; tier: 'personal' | 'gated'; tags: string[]; body: string };
 
 export type UiAction =
-  | { component: 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery'; props: object }
+  | { component: 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources'; props: object }
   | { effect: 'theme'; theme: { name: string; accent?: string; accent2?: string; bg?: string } }
   | { effect: 'confetti' | 'chicken' | 'matrix' | 'konami' | 'terminal' };
 
