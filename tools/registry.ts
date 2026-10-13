@@ -1,4 +1,4 @@
-// Single source of truth for every way into the site: curl, /terminal, chat, MCP.
+// Single source of truth for every way into the site: curl, the terminal's assistant, and MCP.
 // Adding a tool is a one-entry change here. Handlers are pure over the public content export.
 import { z } from 'zod';
 
@@ -7,22 +7,31 @@ export type Project = {
   title: string; slug: string; kind: string; summary: string; period: string; role?: string;
   stack: string[]; links: Link[]; liveUrl?: string; media: string[]; body: string;
 };
+export type Experience = { org: string; title: string; period: string; start?: string; end?: string; place?: string; project?: string; summary?: string };
+export type Site = {
+  name: string; role: string; location: string; tagline: string; domain: string; links: Link[]; bio: string; awards?: string[];
+  experience?: Experience[];
+  education?: { school: string; degree: string; date: string; detail?: string }[];
+  publications?: { cite: string; doi?: string; project?: string }[];
+  skills?: { area: string; items: string[] }[];
+};
 export type Content = {
-  site: { name: string; role: string; location: string; tagline: string; domain: string; links: Link[]; bio: string; awards?: string[] };
+  site: Site;
   projects: Project[];
   media: Media[];
+  builtAt?: number;
 };
 export type Media = {
   id: string; type: 'image' | 'video' | 'pdf' | 'embed'; src: string; url?: string; poster?: string;
-  title: string; alt: string; caption: string; projects: string[];
+  title: string; alt: string; caption: string; projects: string[]; bytes?: number;
 };
 // Personal-tier entries. Only the Worker ever passes these in; they never reach a browser bundle.
 export type PersonalEntry = { slug: string; title: string; tier: 'personal' | 'gated'; tags: string[]; body: string };
 
 export type UiAction =
-  | { component: 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources'; props: object }
-  | { effect: 'theme'; theme: { name: string; accent?: string; accent2?: string; bg?: string } }
-  | { effect: 'confetti' | 'chicken' | 'matrix' | 'konami' | 'terminal' };
+  | { component: 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun'; props: object }
+  | { effect: 'theme'; theme: { name: string } }
+  | { effect: 'confetti' | 'chicken' | 'matrix' | 'konami' };
 
 export type Ctx = {
   content: Content; host: string; ansi: boolean; width?: number;
@@ -92,7 +101,7 @@ export const tools: Tool[] = [
       const p = paint(ctx), ps = ctx.content.projects;
       const w = Math.max(...ps.map((x) => x.slug.length));
       const rows = ps.map((x) => `  ${p(x.slug.padEnd(w), 'blue')}  ${x.title} ${p(`(${x.period})`, 'gray')}`).join('\n');
-      return { text: `\n${p('projects', 'bold')}\n\n${rows}\n\n  ${p(ctx.ansi ? 'show <slug>  ·  curl ' + ctx.host + '/p/<slug>' : 'Use show_project with a slug for details.', 'dim')}\n` };
+      return { text: `\n${p('projects', 'bold')}\n\n${rows}\n\n  ${p(ctx.ansi ? 'curl ' + ctx.host + '/p/<slug>  ·  or open ' + ctx.host + ' in a browser' : 'Use show_project with a slug for details.', 'dim')}\n` };
     },
   }),
   tool({
@@ -104,7 +113,7 @@ export const tools: Tool[] = [
     async handler({ slug }, ctx) {
       const p = paint(ctx), x = findProject(ctx, slug);
       if (!x) return { text: `\n  no project "${slug}". try: list_projects\n` };
-      const links = [...x.links, ...(x.liveUrl ? [{ label: 'live', url: x.liveUrl }] : []), { label: 'web', url: `https://${ctx.host}/p/${x.slug}` }]
+      const links = [...x.links, ...(x.liveUrl ? [{ label: 'live', url: x.liveUrl }] : [])]
         .map((l) => `  ${p(l.label + ':', 'gray')} ${l.url}`).join('\n');
       const role = x.role ? '\n' + p(wrap(x.role, W(ctx)), 'pink') : '';
       return {
@@ -120,9 +129,21 @@ export const tools: Tool[] = [
     visibility: 'listed', tier: 'public', surfaces: ['chat', 'cli', 'ssh', 'mcp'],
     cli: { aliases: ['resume', 'cv'], path: '/resume' },
     async handler(_i, ctx) {
-      const p = paint(ctx), s = ctx.content.site;
-      const items = ctx.content.projects.map((x) => `  ${p(x.title, 'blue')} ${p(x.period, 'gray')}\n${wrap(x.summary, W(ctx) - 2, '    ')}`).join('\n\n');
-      return { text: `\n  ${p(s.name, 'bold')} · ${s.role}\n  PDF: https://${ctx.host}/resume.pdf\n\n${items}\n`, ui: { component: 'ResumeViewer', props: { src: '/resume.pdf' } } };
+      const p = paint(ctx), s = ctx.content.site, w = W(ctx);
+      const exp = (s.experience ?? []).map((e) => {
+        const proj = e.project ? findProject(ctx, e.project) : undefined;
+        const text = e.summary ?? proj?.summary ?? '';
+        return `  ${p(e.title, 'bold')}, ${e.org} ${p([e.period, e.place].filter(Boolean).join(' · '), 'gray')}${text ? '\n' + wrap(text, w - 2, '    ') : ''}`;
+      }).join('\n\n');
+      const projects = ctx.content.projects.filter((x) => x.kind !== 'professional' && x.kind !== 'research')
+        .map((x) => `  ${p(x.title, 'blue')} ${p(x.period, 'gray')}\n${wrap(x.summary, w - 2, '    ')}`).join('\n\n');
+      const edu = (s.education ?? []).map((e) => `  ${e.degree}, ${e.school}, ${e.date}${e.detail ? ` (${e.detail})` : ''}`).join('\n');
+      const skills = (s.skills ?? []).map((k) => wrap(`${k.area}: ${k.items.join(', ')}`, w - 2, '  ')).join('\n');
+      const sec = (t: string) => '\n' + p(t, 'bold', 'pink') + '\n';
+      return {
+        text: `\n  ${p(s.name, 'bold')} · ${s.role} · ${s.location}\n  PDF: https://${ctx.host}/resume.pdf\n${sec('Experience')}${exp}\n${sec('Projects')}${projects}\n${sec('Education')}${edu}\n${sec('Awards')}${(s.awards ?? []).map((a) => '  ' + a).join('\n')}\n${sec('Skills')}${skills}\n`,
+        ui: { component: 'ResumeViewer', props: { src: '/resume.pdf' } },
+      };
     },
   }),
   tool({
@@ -165,12 +186,6 @@ export const tools: Tool[] = [
 let ghCache: { at: number; events: unknown[] } | null = null; // GitHub's unauthenticated limit is 60/hour
 const mediaFor = (ctx: Ctx, ids: string[]) => ids.map((id) => ctx.content.media.find((m) => m.id === id)).filter((m): m is Media => Boolean(m));
 const words = (s: string) => s.toLowerCase().match(/[a-z0-9+#.-]{2,}/g) ?? [];
-const THEMES: Record<string, { accent: string; accent2: string; bg: string }> = {
-  default: { accent: '#7aa2ff', accent2: '#b48cff', bg: '#0a0c12' },
-  matrix: { accent: '#39ff14', accent2: '#00b341', bg: '#020802' },
-  sunset: { accent: '#ff8a5b', accent2: '#ffd166', bg: '#140a0a' },
-  ocean: { accent: '#22d3ee', accent2: '#818cf8', bg: '#05080d' },
-};
 
 tools.push(
   tool({
@@ -252,21 +267,12 @@ tools.push(
     },
   }),
   tool({
-    name: 'switch_to_terminal',
-    description: 'Open the in-browser terminal version of the site.',
-    input: z.object({}),
-    visibility: 'listed', tier: 'public', surfaces: ['chat'],
-    async handler() {
-      return { text: 'Opening the terminal at /terminal.', ui: { effect: 'terminal' } };
-    },
-  }),
-  tool({
     name: 'theme',
-    description: 'Change the site colour theme: default, matrix, sunset, or ocean.',
-    input: z.object({ name: z.enum(['default', 'matrix', 'sunset', 'ocean']) }),
+    description: 'Change the terminal colour theme: default, matrix, sunset, ocean, amber, or paper (light).',
+    input: z.object({ name: z.enum(['default', 'matrix', 'sunset', 'ocean', 'amber', 'paper']) }),
     visibility: 'hidden', tier: 'public', surfaces: ['chat'],
     async handler({ name }) {
-      return { text: `Theme set to ${name}.`, ui: name === 'matrix' ? { effect: 'matrix' } : { effect: 'theme', theme: { name, ...THEMES[name] } } };
+      return { text: `Theme set to ${name}.`, ui: name === 'matrix' ? { effect: 'matrix' } : { effect: 'theme', theme: { name } } };
     },
   }),
   tool({
@@ -300,6 +306,59 @@ tools.push(
   }),
 );
 
+
+// ---- job fit: map requirements to evidence ----
+const SYNONYMS: Record<string, string[]> = {
+  ml: ['machine', 'learning', 'pytorch', 'tensorflow', 'scikit-learn', 'model'], ai: ['llm', 'llms', 'agentic', 'rag', 'model'],
+  llm: ['llms', 'llm', 'agentic', 'rag', 'orchestration', 'gpt', 'claude', 'translation'], genai: ['llm', 'llms', 'agentic', 'rag'],
+  cv: ['vision', 'yolo', 'opencv', 'detection', 'tracking', 'video', 'image'], vision: ['yolo', 'opencv', 'detection', 'video', 'x3d', 'sam'],
+  nlp: ['language', 'translation', 'sentiment', 'whisper', 'llm', 'text'], rag: ['retrieval', 'retrieval-augmented', 'vector', 'search'],
+  cloud: ['aws', 'terraform', 'docker'], devops: ['docker', 'terraform', 'gitops', 'grafana', 'actions', 'ci'], frontend: ['react', 'typescript', 'javascript'],
+  backend: ['django', 'node.js', 'postgresql', 'mongodb', 'api'], data: ['duckdb', 'pandas', 'sql', 'postgresql'], research: ['publication', 'paper', 'thesis', 'published'],
+  deep: ['pytorch', 'tensorflow', 'cnn', '3d-cnn', 'x3d'], inference: ['onnx', 'optimization', 'whisper', 'latency', 'quantization'], kubernetes: ['k8s', 'flux', 'gitops'],
+};
+const clip = (t: string, n: number) => (t.length <= n ? t : t.slice(0, t.lastIndexOf(' ', n) > n / 2 ? t.lastIndexOf(' ', n) : n).replace(/[,;:.]$/, '') + '…');
+type Evidence = { slug: string; title: string; why: string; score: number };
+function evidenceFor(ctx: Ctx, req: string): { strength: 'strong' | 'partial' | 'none'; evidence: Evidence[]; skill?: string } {
+  const base = words(req).filter((w) => !STOP.has(w));
+  const terms = new Set(base.flatMap((w) => [w, ...(SYNONYMS[w] ?? [])]));
+  const skillHit = (ctx.content.site.skills ?? []).flatMap((k) => k.items).find((it) => {
+    const iw = words(it);
+    return iw.length > 0 && iw.every((w) => base.includes(w)) || base.some((w) => it.toLowerCase() === w);
+  });
+  const ev: Evidence[] = [];
+  for (const p of ctx.content.projects) {
+    const lines = [p.summary, p.role ? `${p.title}: ${p.role}` : '', ...plain(p.body).replace(/\n(?![-*\n])/g, ' ').split('\n'), 'stack: ' + p.stack.join(', ')].filter((l) => l.trim());
+    let best = { line: '', score: 0 };
+    for (const l of lines) {
+      const lw = words(l);
+      const score = lw.filter((w) => base.includes(w)).length * 2 + lw.filter((w) => terms.has(w)).length;
+      if (score > best.score) best = { line: l, score };
+    }
+    if (best.score >= 2) ev.push({ slug: p.slug, title: p.title, why: clip(best.line.replace(/^[-*]\s*/, '').trim(), 120), score: best.score });
+  }
+  ev.sort((a, b) => b.score - a.score);
+  const top = ev.slice(0, 3);
+  const strength = (skillHit && top.length) || (top[0]?.score ?? 0) >= 4 ? 'strong' : skillHit || top.length ? 'partial' : 'none';
+  return { strength, evidence: top, skill: skillHit };
+}
+const STOP = new Set(['experience', 'with', 'and', 'the', 'for', 'years', 'year', 'strong', 'knowledge', 'ability', 'skills', 'using', 'work', 'working', 'plus', 'preferred', 'required', 'familiarity', 'understanding', 'systems', 'system', 'tools', 'tool', 'frameworks', 'framework', 'technologies', 'environment', 'environments', 'production', 'proficiency', 'proficient', 'in', 'of', 'to', 'or', 'an', 'a', 'on', 'build', 'building', 'develop', 'developing', 'excellent', 'solid', 'hands-on']);
+
+tools.push(tool({
+  name: 'match_requirements',
+  description: "Map job requirements to evidence in William's public work. Pass the key requirements extracted from a job description (short phrases like \"PyTorch\", \"RAG systems\", \"AWS\"). Returns, per requirement, a strength (strong/partial/none) and the projects that show it, and renders a fit table.",
+  input: z.object({ requirements: z.array(z.string().min(2).max(120)).min(1).max(12) }),
+  visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
+  async handler({ requirements }, ctx) {
+    const rows = requirements.map((r) => ({ requirement: r, ...evidenceFor(ctx, r) }));
+    const text = rows.map((r) => `- ${r.requirement}: ${r.strength}${r.skill ? ` (resume skill: ${r.skill})` : ''}${r.evidence.length ? `; evidence: ${r.evidence.map((e) => `${e.slug} ("${e.why}")`).join('; ')}` : '; nothing on the site shows this'}`).join('\n');
+    return {
+      text: `Fit table (shown to the visitor):\n${text}\nNote: "none" means the site doesn't show it, not that William can't do it.`,
+      ui: { component: 'FitReport', props: { rows: rows.map((r) => ({ requirement: r.requirement, strength: r.strength, evidence: r.evidence.map((e) => ({ slug: e.slug, why: e.why })) })) } },
+    };
+  },
+}));
+
 // Help is generated from the registry; only `listed` tools appear.
 tools.push(tool({
   name: 'help',
@@ -311,9 +370,8 @@ tools.push(tool({
     const p = paint(ctx);
     const listed = tools.filter((t) => t.visibility === 'listed' && t.surfaces.includes('cli'));
     const curl = listed.filter((t) => t.cli?.path).map((t) => [`curl ${ctx.host}${t.cli!.path!.replace(/:(\w+)/g, '<$1>')}`, t.description]);
-    const cmds = listed.map((t) => [t.cli?.usage ?? t.cli?.aliases?.[0] ?? t.name, t.description]);
     const fmt = (rows: string[][]) => { const w = Math.max(...rows.map((r) => r[0].length)); return rows.map(([a, b]) => `  ${p(a.padEnd(w), 'blue')}  ${b}`).join('\n'); };
-    return { text: `\n${p('curl', 'bold')}\n${fmt(curl)}\n\n${p('terminal', 'bold')}\n${fmt(cmds)}\n` };
+    return { text: `\n${p('curl', 'bold')}\n${fmt(curl)}\n\n${p('browser', 'bold')}\n  https://${ctx.host} is a full terminal: try ${p('resume', 'blue')}, ${p('projects', 'blue')}, ${p('skills', 'blue')}, or just ask a question.\n` };
   },
 }));
 

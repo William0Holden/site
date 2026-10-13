@@ -2,6 +2,11 @@
 import Base from '../layouts/Base.astro';
 ---
 <Base title="Not found">
-  <h1>404</h1>
-  <p class="lede">Nothing here. Try <a href="/projects">the projects</a>, or <span class="mono">curl wholden.com</span>.</p>
+  <main class="plain">
+    <pre>bash: cd: that page: No such file or directory</pre>
+    <p><a href="/">cd ~</a> · or from any shell: <code>curl wholden.com</code></p>
+  </main>
 </Base>
+<style>
+  .plain { font-family: var(--mono); padding: 2rem 16px; }
+</style>

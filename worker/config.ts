@@ -4,6 +4,8 @@ export const LIMITS = {
   perIpDay: 60,
   maxUserTurns: 12, // per conversation
   maxMessageChars: 600,
+  maxFitChars: 6000, // a pasted job description (`fit`), once per conversation
+  maxShellRunsPerRequest: 3,
   maxHistoryChars: 16_000,
   maxOutputTokens: 700,
   maxToolRounds: 4,

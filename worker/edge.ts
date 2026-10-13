@@ -24,3 +24,14 @@ export function withSecurityHeaders(res: Response, secure: boolean): Response {
   if ((out.headers.get('content-type') ?? '').includes('text/html') && !out.headers.has('x-frame-options')) out.headers.set('x-frame-options', 'SAMEORIGIN');
   return out;
 }
+
+// The site is one terminal page; old page URLs open it and run the matching command.
+const MOVED: Record<string, string> = {
+  '/about': '/?cmd=resume', '/resume': '/?cmd=resume', '/projects': '/?cmd=projects', '/contact': '/?cmd=contact', '/chat': '/', '/terminal': '/',
+};
+export const movedPath = (path: string): string | null => {
+  const p = path.replace(/\/+$/, '');
+  if (MOVED[p]) return MOVED[p];
+  const m = p.match(/^\/p\/([a-z0-9-]{1,64})$/i);
+  return m ? `/?cmd=${encodeURIComponent('open ' + m[1].toLowerCase())}` : null;
+};

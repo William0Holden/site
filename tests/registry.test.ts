@@ -14,7 +14,7 @@ test('tool names are unique', () => {
 test('help lists listed tools only', async () => {
   const { text } = await resolvePath('/help')!.tool.handler({}, ctx);
   assert.match(text, /curl wholden\.com\/p\/<slug>/);
-  assert.match(text, /show <slug>/);
+  assert.match(text, /is a full terminal/);
   assert.doesNotMatch(text, /chicken|hire/);
 });
 
@@ -27,6 +27,16 @@ test('resolveCommand parses positional args and aliases', () => {
   assert.ok(bad && 'error' in bad && /usage/.test(bad.error));
   const nf = resolveCommand('frobnicate now');
   assert.ok(nf && 'error' in nf && /command not found/.test(nf.error));
+});
+
+test('match_requirements maps requirements to project evidence', async () => {
+  const t = tools.find((x) => x.name === 'match_requirements')!;
+  const out = await t.handler({ requirements: ['PyTorch', 'Haskell compilers'] }, ctx);
+  const rows = (out.ui as { props: { rows: { requirement: string; strength: string; evidence: { slug: string }[] }[] } }).props.rows;
+  assert.equal(rows[0].strength, 'strong');
+  assert.ok(rows[0].evidence.some((e) => e.slug === 'broiler-behavior'));
+  assert.equal(rows[1].strength, 'none');
+  assert.match(out.text, /doesn't show it/);
 });
 
 test('resolvePath maps curl routes', () => {

@@ -1,11 +1,27 @@
 // Easter-egg effects triggered by tool UI events. All are skipped or reduced under reduced motion.
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function setTheme(t: { accent?: string; accent2?: string; bg?: string }) {
+type Theme = { accent?: string; accent2?: string; bg?: string; fg?: string; muted?: string };
+export const THEMES: Record<string, Theme> = {
+  default: { accent: '#7aa2ff', accent2: '#b48cff', bg: '#0a0c12', fg: '#e8ebf2', muted: '#9aa3b5' },
+  matrix: { accent: '#39ff14', accent2: '#00b341', bg: '#020802', fg: '#b6ffb0', muted: '#4f9a4a' },
+  sunset: { accent: '#ff8a5b', accent2: '#ffd166', bg: '#140a0a', fg: '#ffe9dc', muted: '#c19a88' },
+  ocean: { accent: '#22d3ee', accent2: '#818cf8', bg: '#05080d', fg: '#e0f7ff', muted: '#8aa9b8' },
+  amber: { accent: '#ffb000', accent2: '#ffcc66', bg: '#0d0800', fg: '#ffb000', muted: '#a87400' },
+  paper: { accent: '#1f4fd1', accent2: '#8a2be2', bg: '#f7f5ef', fg: '#1d1d1f', muted: '#5f6368' },
+};
+const KEY = 'wholden-theme';
+
+export function setTheme(t: Theme & { name?: string }) {
+  const named = t.name ? THEMES[t.name] : undefined;
+  const v = { ...named, ...Object.fromEntries(Object.entries(t).filter(([k, x]) => k !== 'name' && x)) } as Theme;
   const s = document.documentElement.style;
-  if (t.accent) s.setProperty('--accent', t.accent);
-  if (t.accent2) s.setProperty('--accent2', t.accent2);
-  if (t.bg) s.setProperty('--bg', t.bg);
+  for (const [k, x] of Object.entries(v)) if (x) s.setProperty(`--${k}`, x);
+  document.documentElement.dataset.theme = t.name === 'paper' ? 'light' : 'dark';
+  try { if (t.name) localStorage.setItem(KEY, t.name); } catch { /* storage unavailable */ }
+}
+export function restoreTheme() {
+  try { const n = localStorage.getItem(KEY); if (n && THEMES[n] && n !== 'default') setTheme({ name: n }); } catch { /* storage unavailable */ }
 }
 
 function overlay(): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -41,7 +57,7 @@ export function confetti() {
 }
 
 export function matrix() {
-  setTheme({ accent: '#39ff14', accent2: '#00b341', bg: '#020802' });
+  setTheme({ name: 'matrix' });
   if (reduced()) return;
   const [c, ctx] = overlay();
   const size = 16;
@@ -84,11 +100,10 @@ export function chicken() {
   anim.onfinish = () => el.remove();
 }
 
-export function runEffect(effect: string, theme?: { accent?: string; accent2?: string; bg?: string }) {
+export function runEffect(effect: string, theme?: Theme & { name?: string }) {
   if (effect === 'confetti') confetti();
   else if (effect === 'matrix') matrix();
   else if (effect === 'chicken') chicken();
   else if (effect === 'konami') { confetti(); chicken(); }
   else if (effect === 'theme' && theme) setTheme(theme);
-  else if (effect === 'terminal') setTimeout(() => (location.href = '/terminal'), 600);
 }

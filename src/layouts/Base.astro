@@ -1,55 +1,28 @@
 ---
 import '../styles/global.css';
-import { getSite, themeStyle } from '../lib';
-import CommandPalette from '../components/CommandPalette';
+import { getSite } from '../lib';
 
-interface Props {
-  title?: string;
-  description?: string;
-  theme?: { accent: string; accent2: string; bg: string };
-}
-const { title, description, theme } = Astro.props;
+interface Props { title?: string; description?: string }
+const { title, description } = Astro.props;
 const site = await getSite();
 const pageTitle = title ? `${title} · ${site.data.shortName}` : `${site.data.name} · ${site.data.role}`;
 const desc = description ?? site.data.tagline;
-const path = Astro.url.pathname.replace(/\/$/, '') || '/';
-const nav = [
-  ['/', 'Chat'],
-  ['/projects', 'Work'],
-  ['/resume', 'Resume'],
-  ['/terminal', 'Terminal'],
-];
 ---
 <!doctype html>
-<html lang="en" style={theme ? themeStyle(theme) : undefined}>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline>document.documentElement.classList.add('js')</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
     <title>{pageTitle}</title>
     <meta name="description" content={desc} />
-    <meta name="theme-color" content={theme?.bg ?? '#0a0c12'} />
+    <meta name="theme-color" content="#0a0c12" />
     <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={desc} />
   </head>
   <body>
-    <a class="wrap" href="#main" style="position:absolute;left:-999px">Skip to content</a>
-    <header class="wrap site-header">
-      <a class="brand" href="/">wholden<span>.com</span></a>
-      <nav aria-label="Primary">
-        {nav.map(([href, label]) => (
-          <a href={href} aria-current={(href === '/' ? path === '/' : path.startsWith(href)) ? 'page' : undefined}>{label}</a>
-        ))}
-        <CommandPalette client:idle />
-      </nav>
-    </header>
-    <main id="main" class="wrap"><slot /></main>
-    <footer class="wrap site-footer">
-      <p>
-        {site.data.links.map((l, i) => (<>{i > 0 && ' · '}<a href={l.url}>{l.label}</a></>))}
-        · <span class="mono">curl wholden.com</span>
-      </p>
-    </footer>
+    <slot />
   </body>
 </html>
