@@ -10,6 +10,7 @@ then read `CLAUDE.md`. Work continues from "Not built yet" below.
 ## Status and decisions (2026-10-12)
 
 ### Decided by William
+- **2026-10-13:** SSH (Phase 3) dropped (no paid hosting). No OpenRouter key limit or Turnstile; the in-code $2/day + $20/month caps and the built-in proof-of-work check stand in. No footage-hours figure on the site.
 - **Domain:** `wholden.com` (not william0holden.com). Registered on Cloudflare Registrar
   2026-10-12 with Cloudflare nameservers. SSH host will be `ssh.wholden.com`. No second domain.
 - **Deployment:** Cloudflare **Workers Builds** connected to `William0Holden/site`, production
