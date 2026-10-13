@@ -5,7 +5,8 @@ kind: project
 summary: Full-stack movie booking system built with React, Django, and SQL; led Agile sprints for a 5-engineer team.
 period: Fall 2024
 stack: [React, Django, SQL]
-links: []
+links:
+  - { label: "Code", url: "https://github.com/William0Holden/cinema-ebooking" }
 media: []
 featured: false
 order: 5
