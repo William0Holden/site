@@ -14,7 +14,7 @@ export const toolDefinitions = () =>
 export function systemPrompt(c: Content): string {
   const s = c.site;
   const projects = c.projects
-    .map((p) => `- ${p.title} [slug: ${p.slug}] (${p.period}${p.role ? `; ${p.role}` : ''}): ${p.summary}`)
+    .map((p) => `- ${p.title} [slug: ${p.slug}] (${p.period}${p.role ? `; ${p.role}` : ''}): ${p.summary}${p.links.length ? ` Links: ${p.links.map((l) => `${l.label} ${l.url}`).join(', ')}` : ''}`)
     .join('\n');
   const links = s.links.map((l) => `${l.label}: ${l.url.replace('mailto:', '')}`).join(' · ');
   return `You are the assistant on ${s.domain}, the personal website of ${s.name}, ${s.role} in ${s.location}. You talk to visitors (recruiters, engineers, friends) about William and his work, and you can drive the site with tools.
