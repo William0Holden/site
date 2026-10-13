@@ -50,7 +50,7 @@ h2 { font-size: 1.4rem; margin-top: 2.5rem; }
   transition: transform 200ms ease, border-color 200ms ease;
 }
 .card:hover { transform: translateY(-2px); border-color: var(--card-accent, var(--accent)); color: inherit; }
-.card h3 { margin: .25rem 0 .5rem; }
+.card :is(h2, h3) { margin: .25rem 0 .5rem; font-size: 1.17rem; }
 .card p { margin: 0; color: var(--muted); font-size: .95rem; }
 .chips { display: flex; flex-wrap: wrap; gap: .4rem; padding: 0; list-style: none; }
 .chips li { font-family: var(--mono); font-size: .75rem; padding: .15rem .5rem; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); }
