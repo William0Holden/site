@@ -4,8 +4,10 @@ slug: whisper-optimization
 kind: project
 summary: INT8 quantization of the Whisper encoder (−70% size, no material word-accuracy loss on LibriSpeech) plus Winograd convolution for 1D layers, 60% compression for mobile deployment.
 period: Spring 2025
+role: ML Systems course project (CSCI 8000, University of Georgia), team project
 stack: [ONNX Runtime, PyTorch, Quantization]
-links: []
+links:
+  - { label: "Code (team repo)", url: "https://github.com/alexander-darwiche/CS8000-MLSys" }
 media: []
 featured: false
 order: 4

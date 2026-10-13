@@ -25,7 +25,7 @@ const cases: Case[] = [
   { q: 'Can I see his resume?', expect: ['get_resume'] },
   { q: 'How can I contact William?', expect: ['contact'] },
   { q: 'What has he pushed to GitHub lately?', expect: ['github_activity'] },
-  { q: 'Show me the live tufftiff site', expect: ['open_site'] },
+  { q: 'Show me the code for DeckTection', expect: ['show_project', 'search_corpus'] },
   { q: 'Does he know Terraform?', expect: ['search_corpus', 'show_project'] },
   { q: 'What did he do with Whisper?', expect: ['show_project', 'search_corpus'] },
   { q: 'Open the terminal version', expect: ['switch_to_terminal'] },

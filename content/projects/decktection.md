@@ -6,7 +6,8 @@ summary: Trading-card identification pipeline (YOLOv12 → SAM2 → Siamese netw
 period: Spring 2025
 role: Computer Vision course project (CSCI 8820), with Alex Darwiche
 stack: [PyTorch, YOLOv12, SAM2, ResNet-18, OpenCV]
-links: []
+links:
+  - { label: "Code (team repo)", url: "https://github.com/DeckTection/DeckTection" }
 media: []
 featured: true
 order: 3

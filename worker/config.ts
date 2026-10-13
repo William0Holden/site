@@ -13,6 +13,10 @@ export const LIMITS = {
   // Worst-case cost pre-charged to the daily budget at reserve time, refunded on settle.
   requestEstimateUsd: 0.02,
   defaultDailyBudgetUsd: 2,
+  defaultMonthlyBudgetUsd: 20, // second backstop in code, independent of the OpenRouter key limit
+  powBits: 17, // proof-of-work difficulty for the built-in bot check (~0.5–2s in a browser)
+  powTtlSec: 300,
+  sessionsPerIpHour: 6,
   sessionTtlSec: 24 * 3600,
   unlockTtlSec: 90 * 24 * 3600,
 };

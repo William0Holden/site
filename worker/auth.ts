@@ -76,3 +76,30 @@ export async function verifyTurnstile(secret: string, token: string, ip: string)
     return false;
   }
 }
+
+// Built-in proof-of-work bot check (used when Turnstile isn't configured): the client must find a
+// counter where SHA-256(`${challenge}:${counter}`) starts with `bits` zero bits.
+export async function issuePow(secret: string, ttlSec: number, now = Date.now()) {
+  const exp = Math.floor(now / 1000) + ttlSec;
+  const nonce = crypto.randomUUID().replace(/-/g, '');
+  return `${exp}.${nonce}.${await hmac(secret, `pow.${exp}.${nonce}`)}`;
+}
+
+export function leadingZeroBits(bytes: Uint8Array) {
+  let n = 0;
+  for (const b of bytes) {
+    if (b === 0) { n += 8; continue; }
+    return n + Math.clz32(b) - 24;
+  }
+  return n;
+}
+
+/** Returns the challenge nonce if the solution is valid (caller must still enforce single use). */
+export async function verifyPow(secret: string, challenge: string, counter: string, bits: number, now = Date.now()): Promise<string | null> {
+  const [expStr, nonce, sig] = challenge.split('.');
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || exp * 1000 < now || !nonce || !sig || !/^\d{1,12}$/.test(counter)) return null;
+  if (!safeEqual(sig, await hmac(secret, `pow.${exp}.${nonce}`))) return null;
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(`${challenge}:${counter}`)));
+  return leadingZeroBits(digest) >= bits ? nonce : null;
+}
