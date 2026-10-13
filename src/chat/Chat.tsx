@@ -7,7 +7,7 @@ import './chat.css';
 
 type Ui = { component: string; props: Record<string, unknown> };
 type Msg = { role: 'user' | 'assistant'; content: string; ui?: Ui[]; note?: string };
-type Status = { enabled: boolean; resting: boolean; turnstileSiteKey: string | null; limits: { perHour: number; perDay: number; turns: number; maxChars: number } };
+type Status = { enabled: boolean; resting: boolean; turnstileSiteKey: string | null; powBits: number | null; limits: { perHour: number; perDay: number; turns: number; maxChars: number } };
 
 const STORE = 'wholden-chat-v1';
 const TOOL_LABELS: Record<string, string> = {
@@ -30,7 +30,31 @@ function chips(c: Content): { q: string; answer: string; ui?: Ui[] }[] {
   ];
 }
 
+// Built-in bot check: find a counter whose SHA-256 with the server's signed challenge starts with
+// `bits` zero bits. Takes about a second; the resulting session cookie lasts a day.
+async function solvePow(signal: AbortSignal): Promise<{ challenge: string; counter: string } | null> {
+  const { challenge, bits } = await (await fetch('/api/chat/challenge', { signal })).json();
+  if (!challenge) return null;
+  const enc = new TextEncoder();
+  const ok = (d: ArrayBuffer) => {
+    const b = new Uint8Array(d);
+    let n = 0;
+    for (const x of b) { if (x === 0) { n += 8; continue; } n += Math.clz32(x) - 24; break; }
+    return n >= bits;
+  };
+  for (let base = 0; base < 50_000_000; base += 256) {
+    if (signal.aborted) return null;
+    const batch = await Promise.all(Array.from({ length: 256 }, (_, i) => crypto.subtle.digest('SHA-256', enc.encode(`${challenge}:${base + i}`))));
+    const hit = batch.findIndex(ok);
+    if (hit >= 0) return { challenge, counter: String(base + hit) };
+  }
+  return null;
+}
+
 const ERRORS: Record<string, string> = {
+  verification_required: 'Could not verify this browser. Please try again.',
+  rate_sessions: 'Too many new chat sessions from this network. Try again in an hour (cookies must be enabled).',
+  budget_month: "The assistant is resting for now (this month's budget is used up). The suggestions above and the rest of the site still work.",
   rate_hour: "You've hit the hourly message limit. Try again a little later.",
   rate_day: "You've hit today's message limit. Come back tomorrow, or email William directly.",
   budget: "The assistant is resting until tomorrow (today's budget is used up). The suggestions above and the rest of the site still work.",
@@ -100,16 +124,23 @@ export default function Chat({ variant = 'page' }: { variant?: 'home' | 'page' }
     const ctl = new AbortController();
     abort.current = ctl;
     try {
-      const res = await fetch('/api/chat', {
+      const post = (pow?: { challenge: string; counter: string } | null) => fetch('/api/chat', {
         method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), turnstileToken: tsToken.current ?? undefined }),
+        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), turnstileToken: tsToken.current ?? undefined, pow: pow ?? undefined }),
       });
+      const verify = async () => { patchLast((m) => ({ ...m, note: 'Checking this is a browser' })); return solvePow(ctl.signal); };
+      // Try the existing session cookie first; solve the bot check only when the server asks.
+      let res = await post(null);
+      if (res.status === 403) {
+        const peek = await res.clone().json().catch(() => ({}));
+        if (peek.error === 'verification_required') res = await post(await verify());
+      }
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({ error: 'error' }));
         setMessages(history.slice(0, -1));
         setInput(q);
         if (data.error === 'turnstile_required') setNeedCheck(true);
-        if (data.error === 'budget') setStatus((s) => (s ? { ...s, resting: true } : s));
+        if (data.error === 'budget' || data.error === 'budget_month') setStatus((s) => (s ? { ...s, resting: true } : s));
         setError(ERRORS[data.error] ?? 'Something went wrong. Try again.');
         return;
       }
@@ -143,7 +174,7 @@ export default function Chat({ variant = 'page' }: { variant?: 'home' | 'page' }
       abort.current = null;
       setMessages((ms) => (ms.length && ms[ms.length - 1].role === 'assistant' && !ms[ms.length - 1].content && !ms[ms.length - 1].ui?.length ? ms.slice(0, -1) : ms.map((m) => ({ ...m, note: undefined }))));
     }
-  }, [busy, messages]);
+  }, [busy, messages, status]);
 
   const ask = (c: { q: string; answer: string; ui?: Ui[] }) => setMessages((ms) => [...ms, { role: 'user', content: c.q }, { role: 'assistant', content: c.answer, ui: c.ui }]);
   const reset = () => { abort.current?.abort(); setMessages([]); setError(null); };
@@ -179,7 +210,7 @@ export default function Chat({ variant = 'page' }: { variant?: 'home' | 'page' }
         <label htmlFor={`chat-input-${variant}`} className="visually-hidden">Message</label>
         <textarea
           id={`chat-input-${variant}`} rows={1} value={input} maxLength={maxChars}
-          placeholder={!status ? 'Loading…' : chatOff ? (status.resting ? 'The assistant is resting until tomorrow. Try the suggestions above.' : 'Chat is offline. Try the suggestions above.') : userTurns >= maxTurns ? 'Conversation limit reached. Start a new chat.' : 'Ask about projects, research, skills…'}
+          placeholder={!status ? 'Loading…' : chatOff ? (status.resting ? 'The assistant is resting for now (budget used up). Try the suggestions above.' : 'Chat is offline. Try the suggestions above.') : userTurns >= maxTurns ? 'Conversation limit reached. Start a new chat.' : 'Ask about projects, research, skills…'}
           disabled={chatOff || userTurns >= maxTurns}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}

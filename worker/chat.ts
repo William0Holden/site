@@ -2,7 +2,7 @@
 // and streams Server-Sent Events: text deltas, tool notices, UI actions, done/error.
 import type { Env } from './index';
 import { LIMITS, DEFAULT_MODEL, DEFAULT_FALLBACK } from './config';
-import { cookie, getCookie, ipKey, signSession, verifySession, verifyToken, verifyTurnstile, visitorId } from './auth';
+import { cookie, getCookie, ipKey, issuePow, signSession, verifyPow, verifySession, verifyToken, verifyTurnstile, visitorId } from './auth';
 import { streamRound, type ChatMessage } from './llm';
 import { chatTools, systemPrompt, toolDefinitions } from './prompt';
 import type { Content, Ctx, PersonalEntry } from '../tools/registry';
@@ -25,23 +25,34 @@ const budget = (env: Env) => {
   const n = Number.parseFloat(env.DAILY_LLM_BUDGET_USD ?? '');
   return Number.isFinite(n) && n >= 0 ? n : LIMITS.defaultDailyBudgetUsd;
 };
+const monthly = (env: Env) => {
+  const n = Number.parseFloat(env.MONTHLY_LLM_BUDGET_USD ?? '');
+  return Number.isFinite(n) && n >= 0 ? n : LIMITS.defaultMonthlyBudgetUsd;
+};
 const limiter = (env: Env) => env.LIMITER.get(env.LIMITER.idFromName('global'));
 const models = (env: Env) => [env.LLM_MODEL || DEFAULT_MODEL, env.LLM_FALLBACK_MODEL || DEFAULT_FALLBACK].filter((m, i, a) => a.indexOf(m) === i);
 
+export async function powChallenge(env: Env): Promise<Response> {
+  if (!env.SESSION_SIGNING_SECRET) return json({ error: 'not_configured' }, 503);
+  return json({ challenge: await issuePow(env.SESSION_SIGNING_SECRET, LIMITS.powTtlSec), bits: LIMITS.powBits });
+}
+
 export async function chatStatus(env: Env): Promise<Response> {
   const enabled = Boolean(env.OPENROUTER_API_KEY && env.SESSION_SIGNING_SECRET);
-  const { resting } = enabled ? await limiter(env).status(budget(env)) : { resting: false };
+  const { resting } = enabled ? await limiter(env).status(budget(env), monthly(env)) : { resting: false };
   return json({
     enabled, resting,
     turnstileSiteKey: env.TURNSTILE_SECRET_KEY ? env.TURNSTILE_SITE_KEY ?? null : null,
+    powBits: env.TURNSTILE_SECRET_KEY ? null : LIMITS.powBits,
     limits: { perHour: LIMITS.perIpHour, perDay: LIMITS.perIpDay, turns: LIMITS.maxUserTurns, maxChars: LIMITS.maxMessageChars },
   });
 }
 
 type InMsg = { role: 'user' | 'assistant'; content: string };
 
-function validate(body: unknown): { ok: true; messages: InMsg[]; turnstileToken?: string } | { ok: false; status: number; error: string } {
-  const b = body as { messages?: unknown; turnstileToken?: unknown };
+type Pow = { challenge: string; counter: string };
+function validate(body: unknown): { ok: true; messages: InMsg[]; turnstileToken?: string; pow?: Pow } | { ok: false; status: number; error: string } {
+  const b = body as { messages?: unknown; turnstileToken?: unknown; pow?: { challenge?: unknown; counter?: unknown } };
   if (!Array.isArray(b?.messages) || b.messages.length === 0) return { ok: false, status: 400, error: 'bad_request' };
   if (b.messages.length > 2 * LIMITS.maxUserTurns + 2) return { ok: false, status: 429, error: 'conversation_limit' };
   const messages: InMsg[] = [];
@@ -62,7 +73,8 @@ function validate(body: unknown): { ok: true; messages: InMsg[]; turnstileToken?
     kept.unshift(messages[i]);
   }
   while (kept.length && kept[0].role !== 'user') kept.shift();
-  return { ok: true, messages: kept, turnstileToken: typeof b.turnstileToken === 'string' ? b.turnstileToken : undefined };
+  const pow = typeof b.pow?.challenge === 'string' && typeof b.pow?.counter === 'string' ? { challenge: b.pow.challenge, counter: b.pow.counter } : undefined;
+  return { ok: true, messages: kept, turnstileToken: typeof b.turnstileToken === 'string' ? b.turnstileToken : undefined, pow };
 }
 
 async function readCapped(req: Request, max: number): Promise<string | null> {
@@ -106,21 +118,29 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
   const ip = req.headers.get('cf-connecting-ip') ?? '0.0.0.0';
   const headers: Record<string, string> = {};
 
-  // Bot check: a valid session cookie, or a fresh Turnstile token that earns one.
+  // Bot check: a valid session cookie, or a fresh Turnstile token / proof-of-work that earns one.
+  const lim = limiter(env);
+  const netVisitor = await visitorId(env.SESSION_SIGNING_SECRET, ipKey(ip));
   let sessionId = await verifySession(env.SESSION_SIGNING_SECRET, getCookie(req, 'chat_session'));
-  if (env.TURNSTILE_SECRET_KEY && !sessionId) {
-    if (!v.turnstileToken || !(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, v.turnstileToken, ip))) return json({ error: 'turnstile_required' }, 403);
+  if (!sessionId) {
+    if (env.TURNSTILE_SECRET_KEY) {
+      if (!v.turnstileToken || !(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, v.turnstileToken, ip))) return json({ error: 'turnstile_required' }, 403);
+    } else {
+      const nonce = v.pow ? await verifyPow(env.SESSION_SIGNING_SECRET, v.pow.challenge, v.pow.counter, LIMITS.powBits) : null;
+      if (!nonce) return json({ error: 'verification_required' }, 403);
+      const minted = await lim.claimMint(nonce, netVisitor, LIMITS.sessionsPerIpHour);
+      if (minted === 'replay') return json({ error: 'verification_required' }, 403);
+      if (minted === 'limit') return json({ error: 'rate_sessions', retryAfterSec: 3600 }, 429);
+    }
     const token = await signSession(env.SESSION_SIGNING_SECRET, LIMITS.sessionTtlSec);
     sessionId = token.split('.')[1];
     headers['set-cookie'] = cookie('chat_session', token, LIMITS.sessionTtlSec);
   }
 
-  // Limits apply per network (IPv6 /64) and, once verified, per session as well.
-  const visitors = [await visitorId(env.SESSION_SIGNING_SECRET, ipKey(ip))];
-  if (sessionId) visitors.push(`s:${sessionId}`);
-  const lim = limiter(env);
+  // Limits apply per network (IPv6 /64) and per verified session.
+  const visitors = [netVisitor, `s:${sessionId}`];
   const estimate = LIMITS.requestEstimateUsd;
-  const r = await lim.reserve(visitors, budget(env), estimate);
+  const r = await lim.reserve(visitors, budget(env), estimate, monthly(env));
   if (!r.ok) return json({ error: r.reason, retryAfterSec: r.retryAfterSec }, 429, { 'retry-after': String(r.retryAfterSec), ...headers });
 
   const unlocked = await verifyToken(env.UNLOCK_SIGNING_SECRET, 'unlock', getCookie(req, 'unlock'));

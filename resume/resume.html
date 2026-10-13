@@ -19,6 +19,7 @@
   p { margin: 2px 0; }
   .skills p { margin: 1px 0; }
   body:not(.private) .private-only { display: none; }
+  body.private .public-only { display: none; }
 </style>
 </head>
 <body>
@@ -27,12 +28,14 @@
 <a href="https://wholden.com">wholden.com</a> · <a href="https://www.linkedin.com/in/william-olan-holden">linkedin.com/in/william-olan-holden</a> · <a href="https://github.com/william0holden">github.com/william0holden</a></p>
 
 <h2>SUMMARY</h2>
-<p>AI Engineer building internal agentic and retrieval-augmented platforms at Aderant for the teams behind the company's legal software. Background spans full-stack development, LLM orchestration, and deep learning for computer vision and NLP, with peer-reviewed research in <i>Computers and Electronics in Agriculture</i>.</p>
+<p>AI Engineer building internal agentic and retrieval-augmented applications at Aderant for the teams behind the company's legal software. Background spans full-stack development, LLM orchestration, and deep learning for computer vision and NLP, with peer-reviewed research in <i>Computers and Electronics in Agriculture</i>.</p>
 
 <h2>PROFESSIONAL EXPERIENCE</h2>
 <div class="row"><b>Aderant</b><span>Dec 2025 – Present</span></div>
 <div class="row sub"><span>AI Engineer, Docketing &amp; VI Engineering</span><span>Atlanta, GA (Hybrid)</span></div>
 <ul>
+  <li class="public-only">Build internal AI applications for the teams behind Aderant's legal software, focused on agentic workflows and retrieval-augmented generation.</li>
+  <li class="public-only">Stack: Python, TypeScript/React, AWS, Claude Platform, Terraform.</li>
 </ul>
 <div class="row"><b>University of Georgia, School of Computing</b><span>2024 – Dec 2025</span></div>
 <div class="row sub"><span>Graduate Research Assistant, Computer Vision</span><span>Athens, GA</span></div>
@@ -48,7 +51,7 @@
 <div class="row"><b>Whisper Inference Optimization</b><span>ONNX Runtime, Quantization</span></div>
 <ul><li>Quantized the Whisper encoder to INT8, cutting model size 70% with no material word-accuracy loss (LibriSpeech); implemented Winograd convolution for 1D layers for 60% compression enabling mobile deployment.</li></ul>
 <div class="row"><b>Evaluating LLMs as Translators</b><span>MATEO, COMET, BLEU</span></div>
-<ul><li>Benchmarked 15 Korean→English systems (DeepL, Google, GPT-5, Claude, DeepSeek, local Llama/Qwen/Gemma models) against a memoQ reference; best COMET 91.3, metrics correlated at r = 0.92–0.98.</li></ul>
+<ul><li>Benchmarked 15 Korean→English systems (DeepL, Google, GPT-5, Claude, DeepSeek, local Llama/Qwen/Gemma models) against the published human translation; DeepL led COMET (86.5) while Claude, DeepSeek, and GPT-5 beat it on BLEU and chrF2.</li></ul>
 <div class="row"><b>Cinema E-Booking Platform</b><span>React, Django, SQL</span></div>
 <ul><li>Full-stack booking system; led Agile sprints for a 5-engineer team.</li></ul>
 

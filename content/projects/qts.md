@@ -6,7 +6,8 @@ summary: A point-in-time equities research system with walk-forward backtests, N
 period: Jun – Sep 2026
 role: Personal project
 stack: [Python, DuckDB, pandas, Alpaca API, Streamlit, Ollama]
-links: []
+links:
+  - { label: "Code", url: "https://github.com/William0Holden/quant-research-harness" }
 media: []
 featured: false
 order: 8
