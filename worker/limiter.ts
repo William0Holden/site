@@ -26,24 +26,31 @@ export class Limiter extends DurableObject<unknown> {
     return row?.usd ?? 0;
   }
 
-  /** Check limits and, if allowed, count this message against the visitor. */
-  reserve(visitor: string, budgetUsd: number, now = Date.now()): Reservation {
+  /**
+   * Check limits and, if allowed, count this message against every visitor key and pre-charge a
+   * worst-case cost estimate to today's budget (settled later with the real cost).
+   */
+  reserve(visitors: string[], budgetUsd: number, estimateUsd: number, now = Date.now()): Reservation {
     this.sql.exec('DELETE FROM hits WHERE ts < ?', now - DAY);
     if (this.spentToday(now) >= budgetUsd) return { ok: false, reason: 'budget', retryAfterSec: Math.ceil(msToUtcMidnight(now) / 1000) };
-    const day = this.sql.exec<{ n: number; first: number }>('SELECT COUNT(*) AS n, MIN(ts) AS first FROM hits WHERE visitor = ?', visitor).toArray()[0];
-    if (day.n >= LIMITS.perIpDay) return { ok: false, reason: 'rate_day', retryAfterSec: Math.ceil((day.first + DAY - now) / 1000) };
-    const hour = this.sql.exec<{ n: number; first: number }>('SELECT COUNT(*) AS n, MIN(ts) AS first FROM hits WHERE visitor = ? AND ts >= ?', visitor, now - HOUR).toArray()[0];
-    if (hour.n >= LIMITS.perIpHour) return { ok: false, reason: 'rate_hour', retryAfterSec: Math.ceil((hour.first + HOUR - now) / 1000) };
-    this.sql.exec('INSERT INTO hits (visitor, ts) VALUES (?, ?)', visitor, now);
+    for (const visitor of visitors) {
+      const day = this.sql.exec<{ n: number; first: number }>('SELECT COUNT(*) AS n, MIN(ts) AS first FROM hits WHERE visitor = ?', visitor).toArray()[0];
+      if (day.n >= LIMITS.perIpDay) return { ok: false, reason: 'rate_day', retryAfterSec: Math.ceil((day.first + DAY - now) / 1000) };
+      const hour = this.sql.exec<{ n: number; first: number }>('SELECT COUNT(*) AS n, MIN(ts) AS first FROM hits WHERE visitor = ? AND ts >= ?', visitor, now - HOUR).toArray()[0];
+      if (hour.n >= LIMITS.perIpHour) return { ok: false, reason: 'rate_hour', retryAfterSec: Math.ceil((hour.first + HOUR - now) / 1000) };
+    }
+    for (const visitor of visitors) this.sql.exec('INSERT INTO hits (visitor, ts) VALUES (?, ?)', visitor, now);
+    this.adjust(estimateUsd, now);
     return { ok: true };
   }
 
-  /** Add actual spend reported by OpenRouter. */
-  record(usd: number, now = Date.now()): number {
-    if (!(usd > 0)) return this.spentToday(now);
-    this.sql.exec('INSERT INTO spend (day, usd) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET usd = usd + excluded.usd', today(now), usd);
+  /** Settle a request: add (actual - estimate). Negative deltas refund an unused pre-charge. */
+  adjust(deltaUsd: number, now = Date.now()): number {
+    if (!Number.isFinite(deltaUsd) || deltaUsd === 0) return this.spentToday(now);
+    const next = Math.max(0, this.spentToday(now) + deltaUsd);
+    this.sql.exec('INSERT INTO spend (day, usd) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET usd = excluded.usd', today(now), next);
     this.sql.exec('DELETE FROM spend WHERE day < ?', today(now - 30 * DAY));
-    return this.spentToday(now);
+    return next;
   }
 
   status(budgetUsd: number, now = Date.now()): { resting: boolean; spentUsd: number } {

@@ -2,7 +2,7 @@
 // *italic*, `code`, and [links](url) with http(s)/mailto/site-relative targets only.
 import { Fragment, type ReactNode } from 'react';
 
-const SAFE_URL = /^(https?:\/\/|mailto:|\/(?!\/))/i;
+const SAFE_URL = /^(https?:\/\/|mailto:|\/(?![\/\\]))/i;
 
 function inline(text: string, key = 0): ReactNode[] {
   const out: ReactNode[] = [];

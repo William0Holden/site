@@ -34,7 +34,27 @@ export async function verifyUnlockCode(secret: string | undefined, code: string 
   return safeEqual(code, await unlockCode(secret));
 }
 
-export const visitorId = async (secret: string, ip: string) => (await hmac(secret, `visitor.${ip}`)).slice(0, 22);
+/** Session token carrying a random id: `<exp>.<id>.<sig>`. Rate limits key on the id too. */
+export async function signSession(secret: string, ttlSec: number, now = Date.now()) {
+  const exp = Math.floor(now / 1000) + ttlSec;
+  const id = crypto.randomUUID().replace(/-/g, '');
+  return `${exp}.${id}.${await hmac(secret, `session.${exp}.${id}`)}`;
+}
+export async function verifySession(secret: string | undefined, token: string | undefined, now = Date.now()): Promise<string | null> {
+  if (!secret || !token) return null;
+  const [expStr, id, sig] = token.split('.');
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || exp * 1000 < now || !id || !sig) return null;
+  return safeEqual(sig, await hmac(secret, `session.${exp}.${id}`)) ? id : null;
+}
+
+/** IPv6 clients usually control a whole /64, so rate-limit on the prefix. */
+export function ipKey(ip: string) {
+  if (!ip.includes(':')) return ip;
+  const parts = ip.split('::')[0].split(':');
+  return parts.length >= 4 ? parts.slice(0, 4).join(':') + '::/64' : ip;
+}
+export const visitorId = async (secret: string, key: string) => (await hmac(secret, `visitor.${key}`)).slice(0, 22);
 
 export function getCookie(req: Request, name: string) {
   const m = (req.headers.get('cookie') ?? '').match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
@@ -48,7 +68,11 @@ export async function verifyTurnstile(secret: string, token: string, ip: string)
   body.append('secret', secret);
   body.append('response', token);
   body.append('remoteip', ip);
-  const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body });
-  const data = (await res.json()) as { success: boolean };
-  return data.success === true;
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body });
+    const data = (await res.json()) as { success: boolean };
+    return data.success === true;
+  } catch {
+    return false;
+  }
 }
