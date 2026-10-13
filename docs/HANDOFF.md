@@ -10,6 +10,15 @@ then read `CLAUDE.md`. Work continues from "Not built yet" below.
 ## Status and decisions (2026-10-12)
 
 ### Decided by William
+- **2026-10-13 (terminal-only redesign):** the whole site is one page: a terminal over a simulated
+  Linux shell (`shell/`: VFS, POSIX-ish parser with pipes/redirects/globs/aliases, coreutils, and
+  portfolio commands such as `resume`, `skills`, `timeline`, `open`, `fit`). It opens with only
+  "hello, i'm william." and `try: resume`. Plain-English input goes to the assistant, which can
+  replay read-only commands in the visitor's terminal (`run_shell`) and score job descriptions
+  (`fit` → `match_requirements`). `boot` runs a real Buildroot Linux in the browser (v86, vendored in
+  `public/v86/`). Old URLs (`/resume`, `/projects`, `/p/<slug>`, `/terminal`, …) 301 to `/?cmd=…`.
+  The chat UI, nav, ⌘K palette, xterm.js and the separate pages are gone. Without JS, the page
+  shows a static resume (`<noscript>`). This supersedes the page list and Phase 1/2 UI below.
 - **2026-10-13:** SSH (Phase 3) dropped (no paid hosting). No OpenRouter key limit or Turnstile; the in-code $2/day + $20/month caps and the built-in proof-of-work check stand in. No footage-hours figure on the site.
 - **Domain:** `wholden.com` (not william0holden.com). Registered on Cloudflare Registrar
   2026-10-12 with Cloudflare nameservers. SSH host will be `ssh.wholden.com`. No second domain.

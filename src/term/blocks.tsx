@@ -1,9 +1,12 @@
 // The fixed UI component registry. Tools return { component, props }; only these render.
 // Every prop is looked up against public content, so the model can't inject markup or URLs.
-import type { ReactElement } from 'react';
+import { createContext, useContext, type ReactElement } from 'react';
 import type { Content, Media } from '../../tools/registry';
 
 type Props = { content: Content; props: Record<string, unknown> };
+
+// Lets a block run a shell command (e.g. a project card's gallery button).
+export const RunContext = createContext<(cmd: string) => void>(() => {});
 
 function MediaItem({ m }: { m: Media }) {
   return (
@@ -19,17 +22,24 @@ function MediaItem({ m }: { m: Media }) {
 }
 
 function ProjectCard({ content, props }: Props) {
+  const run = useContext(RunContext);
   const p = content.projects.find((x) => x.slug === props.slug);
   if (!p) return null;
-  const thumb = p.media.map((id) => content.media.find((m) => m.id === id)).find((m) => m?.type === 'image');
+  const media = p.media.map((id) => content.media.find((m) => m.id === id)).filter((m): m is Media => Boolean(m));
+  const thumbs = media.filter((m) => m.type === 'image').slice(0, 3);
   return (
-    <a className="cm-card" href={`/p/${p.slug}`}>
-      {thumb && <img src={thumb.url} alt="" loading="lazy" />}
+    <div className="cm-card">
+      {thumbs.length > 0 && (
+        <button type="button" className="cm-thumbs" onClick={() => run(`gallery ${p.slug}`)} aria-label={`Show all ${media.length} figures for ${p.title}`}>
+          {thumbs.map((m) => <img key={m.id} src={m.url} alt="" loading="lazy" />)}
+        </button>
+      )}
       <span className="cm-eyebrow">{p.kind.replace('-', ' ')} · {p.period}</span>
       <strong>{p.title}</strong>
       <span className="cm-muted">{p.summary}</span>
-      <span className="cm-chips">{p.stack.slice(0, 6).map((s) => <span key={s}>{s}</span>)}</span>
-    </a>
+      <span className="cm-chips">{p.stack.slice(0, 8).map((s) => <button type="button" key={s} onClick={() => run(`skills ${s}`)}>{s}</button>)}</span>
+      {p.links.length > 0 && <span className="cm-links">{p.links.map((l) => <a key={l.url} href={l.url} target="_blank" rel="noopener">{l.label} ↗</a>)}</span>}
+    </div>
   );
 }
 
@@ -59,7 +69,7 @@ function ResumeViewer() {
   return (
     <div className="cm-resume">
       <object data="/resume.pdf" type="application/pdf" aria-label="Resume PDF"><p>PDF preview unavailable.</p></object>
-      <p><a href="/resume.pdf" target="_blank" rel="noopener">Open the PDF</a> · <a href="/resume">Read it as a web page</a></p>
+      <p><a href="/resume.pdf" target="_blank" rel="noopener">Open the PDF ↗</a> · <a href="/resume.pdf" download="William-Holden-Resume.pdf">Download</a></p>
     </div>
   );
 }
@@ -107,7 +117,32 @@ function WebSources({ props }: Props) {
   );
 }
 
-const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
+type FitRow = { requirement?: unknown; strength?: unknown; evidence?: { slug?: unknown; why?: unknown }[] };
+function FitReport({ content, props }: Props) {
+  const run = useContext(RunContext);
+  const rows = (Array.isArray(props.rows) ? props.rows : []) as FitRow[];
+  const mark: Record<string, string> = { strong: '●', partial: '◐', none: '○' };
+  return (
+    <table className="cm-fit">
+      <thead><tr><th>requirement</th><th>match</th><th>evidence</th></tr></thead>
+      <tbody>
+        {rows.slice(0, 12).map((r, i) => {
+          const strength = ['strong', 'partial', 'none'].includes(String(r.strength)) ? String(r.strength) : 'none';
+          const ev = (Array.isArray(r.evidence) ? r.evidence : []).map((e) => ({ p: content.projects.find((x) => x.slug === e.slug), why: String(e.why ?? '').slice(0, 140) })).filter((e) => e.p).slice(0, 3);
+          return (
+            <tr key={i} className={`fit-${strength}`}>
+              <td>{String(r.requirement ?? '').slice(0, 120)}</td>
+              <td><span aria-hidden="true">{mark[strength]}</span> {strength === 'none' ? 'not shown' : strength}</td>
+              <td>{ev.length ? ev.map((e, k) => <span key={k}><button type="button" className="cm-linkbtn" onClick={() => run(`open ${e.p!.slug}`)}>{e.p!.slug}</button>{e.why && <span className="cm-muted"> {e.why}</span>}{k < ev.length - 1 && '; '}</span>) : <span className="cm-muted">—</span>}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
 
 export function UiBlock({ content, ui }: { content: Content | null; ui: { component: string; props: Record<string, unknown> } }) {
   const C = REGISTRY[ui.component];
