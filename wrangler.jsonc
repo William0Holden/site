@@ -14,8 +14,9 @@
     "binding": "ASSETS",
     "html_handling": "drop-trailing-slash",
     "not_found_handling": "404-page",
-    // Worker runs first everywhere: https redirect + HSTS, curl detection, /api, /mcp, /unlock.
-    "run_worker_first": true
+    // Worker runs first for pages/APIs (https redirect + HSTS, curl, /api, /mcp, /unlock); static
+    // files skip it so they don't count against the Workers request quota.
+    "run_worker_first": ["/*", "!/_astro/*", "!/media/*", "!/resume.pdf", "!/favicon.svg"]
   },
   // Rate limits + global daily LLM budget (SQLite-backed Durable Object, free tier).
   "durable_objects": { "bindings": [{ "name": "LIMITER", "class_name": "Limiter" }] },
