@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { getSite, themeStyle } from '../lib';
+import CommandPalette from '../components/CommandPalette';
 
 interface Props {
   title?: string;
@@ -41,6 +42,7 @@ const nav = [
         {nav.map(([href, label]) => (
           <a href={href} aria-current={path.startsWith(href) ? 'page' : undefined}>{label}</a>
         ))}
+        <CommandPalette client:idle />
       </nav>
     </header>
     <main id="main" class="wrap"><slot /></main>
