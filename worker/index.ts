@@ -13,7 +13,7 @@ export default {
       if (res) return res;
     }
 
-    if (url.pathname.startsWith('/api/') && url.pathname !== '/api/content.json') {
+    if (url.pathname.startsWith('/api/') && !['/api/content.json', '/api/registry.json'].includes(url.pathname)) {
       // Phase 2: /api/chat (OpenRouter tool loop + budget Durable Object).
       return Response.json({ error: 'not_implemented' }, { status: 501 });
     }
