@@ -3,7 +3,7 @@ import { chatStatus, handleChat, loadContent, powChallenge } from './chat';
 import { handleMcp } from './mcp';
 import { cookie, signToken, verifyUnlockCode } from './auth';
 import { LIMITS } from './config';
-import { httpsRedirect, withSecurityHeaders } from './edge';
+import { httpsRedirect, movedPath, withSecurityHeaders } from './edge';
 export { Limiter } from './limiter';
 
 export interface Env {
@@ -31,8 +31,6 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-// Consolidated pages: old URLs keep working.
-const MOVED: Record<string, string> = { '/about': '/resume', '/contact': '/resume#contact', '/chat': '/' };
 
 async function route(request: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response> {
   if (isTerminalClient(request)) {
@@ -40,7 +38,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext, url: URL
     if (res) return res;
   }
 
-  const moved = MOVED[url.pathname.replace(/\/+$/, '')];
+  const moved = movedPath(url.pathname);
   if (moved && !isTerminalClient(request)) return Response.redirect(new URL(moved, url).toString(), 301);
   if (url.pathname === '/api/chat') return handleChat(request, env, ctx);
   if (url.pathname === '/api/chat/status') return chatStatus(env);

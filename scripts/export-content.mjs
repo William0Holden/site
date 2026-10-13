@@ -1,6 +1,6 @@
 // Build step: export public content as JSON so the Worker (curl, MCP), the Go SSH app, and the
 // chat all read the same data as the website. Never include content/personal here.
-import { readFileSync, readdirSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import matter from 'gray-matter';
 
@@ -18,20 +18,21 @@ const projects = readdirSync(join(root, 'content/projects'))
 // Images under src/assets get stable public URLs (dist/media/<id>.<ext>) so the chat, MCP, and SSH
 // app can reference them without knowing Astro's hashed asset names.
 mkdirSync(join(root, 'dist/media'), { recursive: true });
+const sizeOf = (p) => { try { return statSync(p).size; } catch { return undefined; } };
 const media = JSON.parse(readFileSync(join(root, 'content/media.json'), 'utf8')).map((m) => {
   if (m.type === 'image' && m.src.startsWith('src/')) {
     const file = `${m.id}${extname(m.src)}`;
     copyFileSync(join(root, m.src), join(root, 'dist/media', file));
-    return { ...m, url: `/media/${file}` };
+    return { ...m, url: `/media/${file}`, bytes: sizeOf(join(root, m.src)) };
   }
-  return { ...m, url: m.src };
+  return { ...m, url: m.src, bytes: m.src.startsWith('/') ? sizeOf(join(root, 'public', m.src)) : undefined };
 });
 
 const out = join(root, 'dist/api');
 mkdirSync(out, { recursive: true });
 writeFileSync(
   join(out, 'content.json'),
-  JSON.stringify({ site: { ...site.data, bio: stripComments(site.content) }, projects, media }, null, 2),
+  JSON.stringify({ site: { ...site.data, bio: stripComments(site.content) }, projects, media, builtAt: Date.now() }, null, 2),
 );
 console.log(`exported ${projects.length} projects to dist/api/content.json`);
 
