@@ -8,17 +8,27 @@ export type Project = {
   stack: string[]; links: Link[]; liveUrl?: string; media: string[]; body: string;
 };
 export type Content = {
-  site: { name: string; role: string; location: string; tagline: string; domain: string; links: Link[]; bio: string };
+  site: { name: string; role: string; location: string; tagline: string; domain: string; links: Link[]; bio: string; awards?: string[] };
   projects: Project[];
-  media: unknown[];
+  media: Media[];
 };
+export type Media = {
+  id: string; type: 'image' | 'video' | 'pdf' | 'embed'; src: string; url?: string; poster?: string;
+  title: string; alt: string; caption: string; projects: string[];
+};
+// Personal-tier entries. Only the Worker ever passes these in; they never reach a browser bundle.
+export type PersonalEntry = { slug: string; title: string; tier: 'personal' | 'gated'; tags: string[]; body: string };
 
 export type UiAction =
   | { component: 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery'; props: object }
-  | { effect: 'theme'; theme: object }
+  | { effect: 'theme'; theme: { name: string; accent?: string; accent2?: string; bg?: string } }
   | { effect: 'confetti' | 'chicken' | 'matrix' | 'konami' | 'terminal' };
 
-export type Ctx = { content: Content; host: string; ansi: boolean; width?: number };
+export type Ctx = {
+  content: Content; host: string; ansi: boolean; width?: number;
+  personal?: PersonalEntry[]; // server-side only
+  unlocked?: boolean; // server-verified unlock cookie; gated entries require it
+};
 export type Surface = 'chat' | 'cli' | 'ssh' | 'mcp';
 
 export type Tool<S extends z.ZodType = z.ZodType> = {
@@ -151,6 +161,141 @@ export const tools: Tool[] = [
   }),
 ];
 
+
+const mediaFor = (ctx: Ctx, ids: string[]) => ids.map((id) => ctx.content.media.find((m) => m.id === id)).filter((m): m is Media => Boolean(m));
+const words = (s: string) => s.toLowerCase().match(/[a-z0-9+#.-]{2,}/g) ?? [];
+const THEMES: Record<string, { accent: string; accent2: string; bg: string }> = {
+  default: { accent: '#7aa2ff', accent2: '#b48cff', bg: '#0a0c12' },
+  matrix: { accent: '#39ff14', accent2: '#00b341', bg: '#020802' },
+  sunset: { accent: '#ff8a5b', accent2: '#ffd166', bg: '#140a0a' },
+  ocean: { accent: '#22d3ee', accent2: '#818cf8', bg: '#05080d' },
+};
+
+tools.push(
+  tool({
+    name: 'show_media',
+    description: 'Show images, figures, or video for a project (by project slug) or a single media id.',
+    input: z.object({ project: z.string().regex(/^[a-z0-9-]{1,64}$/i).optional(), id: z.string().regex(/^[a-z0-9-]{1,64}$/i).optional() }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
+    async handler({ project, id }, ctx) {
+      const items = id ? mediaFor(ctx, [id]) : project ? (findProject(ctx, project)?.media ?? []).map((m) => mediaFor(ctx, [m])[0]).filter(Boolean) : [];
+      if (!items.length) return { text: `No media found${project ? ` for "${project}"` : ''}. Projects with media: ${ctx.content.projects.filter((p) => p.media.length).map((p) => p.slug).join(', ') || 'none'}.` };
+      return {
+        text: `Showing ${items.length} item(s): ` + items.map((m) => `${m.title} (${m.caption})`).join('; '),
+        ui: items.length === 1 ? { component: 'MediaViewer', props: { id: items[0].id } } : { component: 'Gallery', props: { ids: items.map((m) => m.id) } },
+      };
+    },
+  }),
+  tool({
+    name: 'open_site',
+    description: 'Show a live preview of a website William built (projects that have a live URL).',
+    input: z.object({ slug: z.string().regex(/^[a-z0-9-]{1,64}$/i) }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
+    async handler({ slug }, ctx) {
+      const x = findProject(ctx, slug);
+      if (!x?.liveUrl) return { text: `No live site for "${slug}". Sites: ${ctx.content.projects.filter((p) => p.liveUrl).map((p) => p.slug).join(', ') || 'none'}.` };
+      return { text: `Live preview of ${x.title}: ${x.liveUrl}`, ui: { component: 'SitePreview', props: { url: x.liveUrl, title: x.title } } };
+    },
+  }),
+  tool({
+    name: 'github_activity',
+    description: 'Recent public GitHub activity (pushes, new repos) for William.',
+    input: z.object({}),
+    visibility: 'listed', tier: 'public', surfaces: ['chat', 'cli', 'ssh', 'mcp'],
+    cli: { aliases: ['github', 'gh'] },
+    async handler(_i, ctx) {
+      type Ev = { type: string; repo: { name: string }; created_at: string; payload?: { commits?: unknown[] } };
+      let events: Ev[] = [];
+      try {
+        const res = await fetch('https://api.github.com/users/William0Holden/events/public?per_page=30', { headers: { 'user-agent': 'wholden.com', accept: 'application/vnd.github+json' } });
+        if (res.ok) events = await res.json();
+      } catch { /* offline: fall through */ }
+      const items = events
+        .filter((e) => ['PushEvent', 'CreateEvent', 'PublicEvent', 'ReleaseEvent'].includes(e.type))
+        .slice(0, 8)
+        .map((e) => ({ repo: e.repo.name, type: e.type.replace('Event', ''), date: e.created_at.slice(0, 10), commits: e.payload?.commits?.length ?? 0 }));
+      if (!items.length) return { text: 'No recent public GitHub activity (or GitHub is unreachable). Profile: https://github.com/William0Holden' };
+      const p = paint(ctx);
+      return {
+        text: '\n' + items.map((i) => `  ${p(i.date, 'gray')}  ${i.type.padEnd(7)} ${i.repo}${i.commits ? ` (${i.commits} commit${i.commits > 1 ? 's' : ''})` : ''}`).join('\n') + '\n',
+        ui: { component: 'GitHubActivity', props: { items } },
+      };
+    },
+  }),
+  tool({
+    name: 'search_corpus',
+    description: 'Keyword search over all public content (projects, bio). Use for specific questions about skills, tools, or details.',
+    input: z.object({ query: z.string().min(2).max(200) }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat', 'cli', 'mcp'],
+    cli: { aliases: ['search', 'grep'], args: ['query'], usage: 'search <words>' },
+    async handler({ query }, ctx) {
+      const q = new Set(words(query));
+      const docs = [
+        { slug: 'about', title: 'About William', text: ctx.content.site.bio + '\nAwards and honors: ' + (ctx.content.site.awards ?? []).join('; ') },
+        ...ctx.content.projects.map((p) => ({ slug: p.slug, title: p.title, text: [p.summary, p.role ?? '', p.stack.join(' '), plain(p.body)].join('\n') })),
+      ];
+      const scored = docs
+        .map((d) => {
+          const lines = d.text.split('\n').filter((l) => words(l).some((w) => q.has(w)));
+          const score = words(d.text + ' ' + d.title).filter((w) => q.has(w)).length;
+          return { ...d, score, lines };
+        })
+        .filter((d) => d.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 4);
+      if (!scored.length) return { text: `No matches for "${query}".` };
+      return { text: scored.map((d) => `[${d.slug}] ${d.title}\n${d.lines.slice(0, 4).map((l) => '  ' + l.trim()).join('\n')}`).join('\n\n') };
+    },
+  }),
+  tool({
+    name: 'switch_to_terminal',
+    description: 'Open the in-browser terminal version of the site.',
+    input: z.object({}),
+    visibility: 'listed', tier: 'public', surfaces: ['chat'],
+    async handler() {
+      return { text: 'Opening the terminal at /terminal.', ui: { effect: 'terminal' } };
+    },
+  }),
+  tool({
+    name: 'theme',
+    description: 'Change the site colour theme: default, matrix, sunset, or ocean.',
+    input: z.object({ name: z.enum(['default', 'matrix', 'sunset', 'ocean']) }),
+    visibility: 'hidden', tier: 'public', surfaces: ['chat'],
+    async handler({ name }) {
+      return { text: `Theme set to ${name}.`, ui: name === 'matrix' ? { effect: 'matrix' } : { effect: 'theme', theme: { name, ...THEMES[name] } } };
+    },
+  }),
+  tool({
+    name: 'konami',
+    description: 'The Konami code easter egg.',
+    input: z.object({}),
+    visibility: 'hidden', tier: 'public', surfaces: ['chat', 'cli'],
+    cli: { aliases: ['↑↑↓↓←→←→ba', 'uuddlrlrba'] },
+    async handler() {
+      return { text: '+30 lives. Nice.', ui: { effect: 'konami' } };
+    },
+  }),
+  tool({
+    name: 'ask_about',
+    description: 'Look up something personal about William (hobbies, interests, life outside work) by topic. Only use when the visitor asks a personal question.',
+    input: z.object({ topic: z.string().min(2).max(80) }),
+    visibility: 'hidden', tier: 'personal', surfaces: ['chat'],
+    async handler({ topic }, ctx) {
+      const entries = (ctx.personal ?? []).filter((e) => e.tier === 'personal' || ctx.unlocked);
+      const q = new Set(words(topic));
+      const hit = entries
+        .map((e) => ({ e, score: words([e.title, e.tags.join(' '), e.slug].join(' ')).filter((w) => q.has(w)).length * 3 + words(e.body).filter((w) => q.has(w)).length }))
+        .filter((x) => x.score > 0)
+        .sort((a, b) => b.score - a.score)[0];
+      if (hit) return { text: `${hit.e.title}\n${hit.e.body}` };
+      const gatedMatch = (ctx.personal ?? []).some((e) => e.tier === 'gated' && words([e.title, e.tags.join(' ')].join(' ')).some((w) => q.has(w)));
+      if (gatedMatch) return { text: "That one's just for friends — it needs an unlock link from William." };
+      const topics = entries.map((e) => e.title).join(', ');
+      return { text: topics ? `Nothing on "${topic}". Topics William has shared: ${topics}.` : "William hasn't written anything personal here yet." };
+    },
+  }),
+);
+
 // Help is generated from the registry; only `listed` tools appear.
 tools.push(tool({
   name: 'help',
@@ -211,7 +356,7 @@ export function resolvePath(pathname: string): { tool: Tool; input: unknown } | 
 
 // Public manifest (no handlers) for SSH, MCP, and the chat's "what I can do" panel.
 export const manifest = () =>
-  tools.filter((t) => t.visibility === 'listed').map((t) => ({
+  tools.filter((t) => t.visibility === 'listed' && t.tier === 'public').map((t) => ({
     name: t.name, description: t.description, visibility: t.visibility, tier: t.tier, surfaces: t.surfaces,
     cli: t.cli ?? {}, inputSchema: z.toJSONSchema(t.input),
   }));

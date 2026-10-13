@@ -5,6 +5,11 @@ role: AI Engineer
 location: Atlanta, GA
 tagline: AI engineer building agentic and retrieval-augmented platforms.
 domain: wholden.com
+awards:
+  - "1st place, UGA AI in Livestock and Poultry Farming Conference poster competition (2025)"
+  - "Publication in Computers and Electronics in Agriculture (2026, IF 10.3)"
+  - "Rangers Scholarship Fund Merit Scholarship (2022)"
+  - "Presidential Scholar and Dean's List, University of Georgia"
 links:
   - { label: GitHub, url: "https://github.com/william0holden" }
   - { label: LinkedIn, url: "https://www.linkedin.com/in/william-olan-holden" }
