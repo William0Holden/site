@@ -12,7 +12,10 @@ Personal site for William O. Holden. Full spec and current status: `docs/HANDOFF
 - Privacy tiers are enforced in Worker code, not prompts. `content/personal/` never reaches the
   static build, `dist/api/content.json`, or the system prompt.
 - Never render model-generated HTML; tools return typed props for a fixed component registry.
-- Respect `prefers-reduced-motion`; no horizontal scroll at 375px; non-AI pages work without JS.
+- Respect `prefers-reduced-motion`; no horizontal scroll at 375px; without JS the page shows the
+  static `<noscript>` resume.
+- The AI's `run_shell` tool runs only in a read-only shell (`Shell.readonly`); commands it may run
+  must be marked `readonly: true`, and nothing marked so may write, open a program, or call the AI.
 
 ## Commands
 - `npm run dev`: Astro dev server (no Worker).
@@ -21,6 +24,8 @@ Personal site for William O. Holden. Full spec and current status: `docs/HANDOFF
 - `npm run check`: Astro/TS check. Worker typecheck: `npx tsc -p worker`.
 
 ## Layout
-`content/` (markdown + media.json) → `src/` (Astro pages) and `scripts/export-content.mjs`
-(JSON for Worker/SSH/MCP). `worker/` routes curl, `/api/*`, `/mcp`, then static assets.
+`content/` (markdown + media.json; resume data in `site.md` frontmatter) → `scripts/export-content.mjs`
+(`dist/api/content.json`). `shell/` is the shell (shared by the browser and the Worker's `run_shell`);
+`src/term/` is the terminal UI (one page, `src/pages/index.astro`). `worker/` routes curl, `/api/*`,
+`/mcp`, old-URL redirects, then static assets. Tests: `npm test`; AI eval: `node scripts/eval-tools.ts`.
 Deploys: Cloudflare Workers Builds from `main`. Fetch and rebase before pushing.

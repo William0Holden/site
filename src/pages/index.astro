@@ -1,39 +1,39 @@
 ---
-import { Image } from 'astro:assets';
 import { render } from 'astro:content';
 import Base from '../layouts/Base.astro';
-import HeroField from '../components/HeroField.astro';
 import { getProjects, getSite } from '../lib';
-import headshot from '../assets/headshot.jpg';
-import Chat from '../chat/Chat';
+import Terminal from '../term/Terminal';
 
 const site = await getSite();
 const { Content: Bio } = await render(site);
 const projects = await getProjects();
+const s = site.data;
 ---
 <Base>
-  <section class="intro">
-    <HeroField />
-    <Image src={headshot} alt="Headshot of William O. Holden" width={120} height={173} loading="eager" class="headshot" />
-    <div>
-      <h1>{site.data.name}</h1>
-      <p class="lede">{site.data.role} · {site.data.location}. Ask me anything about my work, or jump to <a href="/projects">my work</a>, <a href="/resume">resume</a>, or the <a href="/terminal">terminal</a>.</p>
-    </div>
-  </section>
-  <Chat client:load variant="page" />
+  <Terminal client:load />
   <noscript>
-    <div class="prose">
+    <main class="static">
+      <h1>{s.name}</h1>
+      <p>{s.role} · {s.location}</p>
       <Bio />
-      <h2>Work</h2>
-      <ul>{projects.map((p) => <li><a href={`/p/${p.data.slug}`}>{p.data.title}</a> ({p.data.period})</li>)}</ul>
-      <p><a href="/resume">Resume</a> · or from a shell: <span class="mono">curl wholden.com</span></p>
-    </div>
+      <h2>Experience</h2>
+      <ul>{s.experience.map((e) => <li><strong>{e.title}</strong>, {e.org}{e.period && ` (${e.period})`}{e.summary && `: ${e.summary}`}</li>)}</ul>
+      <h2>Projects</h2>
+      <ul>{projects.map((p) => <li><strong>{p.data.title}</strong> ({p.data.period}): {p.data.summary} {p.data.links.map((l) => <><a href={l.url}>{l.label}</a> </>)}</li>)}</ul>
+      <h2>Education</h2>
+      <ul>{s.education.map((e) => <li>{e.degree}, {e.school}, {e.date}{e.detail && ` (${e.detail})`}</li>)}</ul>
+      <h2>Publication</h2>
+      <ul>{s.publications.map((p) => <li>{p.cite} {p.doi && <a href={`https://doi.org/${p.doi}`}>doi:{p.doi}</a>}</li>)}</ul>
+      <h2>Awards</h2>
+      <ul>{s.awards.map((a) => <li>{a}</li>)}</ul>
+      <h2>Skills</h2>
+      <ul>{s.skills.map((k) => <li><strong>{k.area}:</strong> {k.items.join(', ')}</li>)}</ul>
+      <h2>Contact</h2>
+      <p>{s.links.map((l, i) => <>{i > 0 && ' · '}<a href={l.url}>{l.label === 'Email' ? l.url.replace('mailto:', '') : l.label}</a></>)} · <a href="/resume.pdf">Resume (PDF)</a></p>
+      <p>This site is a terminal and needs JavaScript. From any shell: <code>curl wholden.com</code></p>
+    </main>
   </noscript>
 </Base>
 <style>
-  .intro { position: relative; isolation: isolate; display: flex; gap: 1.25rem; align-items: center; padding-block: .5rem 1.25rem; }
-  .intro h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); margin: 0 0 .35rem; }
-  .intro .lede { margin: 0; font-size: 1.02rem; }
-  .headshot { border-radius: 16px; border: 1px solid var(--border); width: 88px; height: auto; flex: none; }
-  @media (max-width: 640px) { .headshot { width: 64px; } }
+  .static { max-width: 46rem; padding: 2rem 16px; font-family: system-ui, sans-serif; }
 </style>
