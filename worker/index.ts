@@ -3,6 +3,7 @@ import { chatStatus, handleChat, loadContent, powChallenge } from './chat';
 import { handleMcp } from './mcp';
 import { cookie, signToken, verifyUnlockCode } from './auth';
 import { LIMITS } from './config';
+import { httpsRedirect, withSecurityHeaders } from './edge';
 export { Limiter } from './limiter';
 
 export interface Env {
@@ -20,27 +21,13 @@ export interface Env {
   LOCAL_DEV?: string;
 }
 
-const HSTS = 'max-age=31536000; includeSubDomains';
-
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const redirect = httpsRedirect(request, isTerminalClient(request), Boolean(env.LOCAL_DEV));
+    if (redirect) return redirect;
     const url = new URL(request.url);
-    // Browsers go to https; curl/wget keep working over plain http (`curl wholden.com`).
-    // cf.tlsVersion is "" on plain-HTTP requests at the edge (and absent/filled in local dev).
-    const tls = (request.cf as { tlsVersion?: string } | undefined)?.tlsVersion;
-    const insecure = tls === '' && !env.LOCAL_DEV; // wrangler dev reports "" too; .dev.vars sets LOCAL_DEV
-    if (insecure && !isTerminalClient(request)) {
-      url.protocol = 'https:';
-      return Response.redirect(url.toString(), 301);
-    }
     const res = await route(request, env, ctx, url);
-    if (insecure || res.status === 101) return res;
-    const out = new Response(res.body, res);
-    out.headers.set('strict-transport-security', HSTS);
-    out.headers.set('x-content-type-options', 'nosniff');
-    out.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
-    if ((out.headers.get('content-type') ?? '').includes('text/html')) out.headers.set('x-frame-options', 'SAMEORIGIN');
-    return out;
+    return withSecurityHeaders(res, url.protocol === 'https:' && !env.LOCAL_DEV);
   },
 } satisfies ExportedHandler<Env>;
 

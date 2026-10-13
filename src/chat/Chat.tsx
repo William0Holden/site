@@ -32,8 +32,8 @@ function chips(c: Content): { q: string; answer: string; ui?: Ui[] }[] {
 
 // Built-in bot check: find a counter whose SHA-256 with the server's signed challenge starts with
 // `bits` zero bits. Takes about a second; the resulting session cookie lasts a day.
-async function solvePow(): Promise<{ challenge: string; counter: string } | null> {
-  const { challenge, bits } = await (await fetch('/api/chat/challenge')).json();
+async function solvePow(signal: AbortSignal): Promise<{ challenge: string; counter: string } | null> {
+  const { challenge, bits } = await (await fetch('/api/chat/challenge', { signal })).json();
   if (!challenge) return null;
   const enc = new TextEncoder();
   const ok = (d: ArrayBuffer) => {
@@ -43,6 +43,7 @@ async function solvePow(): Promise<{ challenge: string; counter: string } | null
     return n >= bits;
   };
   for (let base = 0; base < 50_000_000; base += 256) {
+    if (signal.aborted) return null;
     const batch = await Promise.all(Array.from({ length: 256 }, (_, i) => crypto.subtle.digest('SHA-256', enc.encode(`${challenge}:${base + i}`))));
     const hit = batch.findIndex(ok);
     if (hit >= 0) return { challenge, counter: String(base + hit) };
@@ -52,6 +53,7 @@ async function solvePow(): Promise<{ challenge: string; counter: string } | null
 
 const ERRORS: Record<string, string> = {
   verification_required: 'Could not verify this browser. Please try again.',
+  rate_sessions: 'Too many new chat sessions from this network. Try again in an hour (cookies must be enabled).',
   budget_month: "The assistant is resting for now (this month's budget is used up). The suggestions above and the rest of the site still work.",
   rate_hour: "You've hit the hourly message limit. Try again a little later.",
   rate_day: "You've hit today's message limit. Come back tomorrow, or email William directly.",
@@ -126,7 +128,7 @@ export default function Chat({ variant = 'page' }: { variant?: 'home' | 'page' }
         method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), turnstileToken: tsToken.current ?? undefined, pow: pow ?? undefined }),
       });
-      const verify = async () => { patchLast((m) => ({ ...m, note: 'Checking this is a browser' })); return solvePow(); };
+      const verify = async () => { patchLast((m) => ({ ...m, note: 'Checking this is a browser' })); return solvePow(ctl.signal); };
       // Try the existing session cookie first; solve the bot check only when the server asks.
       let res = await post(null);
       if (res.status === 403) {
@@ -138,7 +140,7 @@ export default function Chat({ variant = 'page' }: { variant?: 'home' | 'page' }
         setMessages(history.slice(0, -1));
         setInput(q);
         if (data.error === 'turnstile_required') setNeedCheck(true);
-        if (data.error === 'budget') setStatus((s) => (s ? { ...s, resting: true } : s));
+        if (data.error === 'budget' || data.error === 'budget_month') setStatus((s) => (s ? { ...s, resting: true } : s));
         setError(ERRORS[data.error] ?? 'Something went wrong. Try again.');
         return;
       }
@@ -208,7 +210,7 @@ export default function Chat({ variant = 'page' }: { variant?: 'home' | 'page' }
         <label htmlFor={`chat-input-${variant}`} className="visually-hidden">Message</label>
         <textarea
           id={`chat-input-${variant}`} rows={1} value={input} maxLength={maxChars}
-          placeholder={!status ? 'Loading…' : chatOff ? (status.resting ? 'The assistant is resting until tomorrow. Try the suggestions above.' : 'Chat is offline. Try the suggestions above.') : userTurns >= maxTurns ? 'Conversation limit reached. Start a new chat.' : 'Ask about projects, research, skills…'}
+          placeholder={!status ? 'Loading…' : chatOff ? (status.resting ? 'The assistant is resting for now (budget used up). Try the suggestions above.' : 'Chat is offline. Try the suggestions above.') : userTurns >= maxTurns ? 'Conversation limit reached. Start a new chat.' : 'Ask about projects, research, skills…'}
           disabled={chatOff || userTurns >= maxTurns}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}

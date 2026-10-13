@@ -128,7 +128,9 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
     } else {
       const nonce = v.pow ? await verifyPow(env.SESSION_SIGNING_SECRET, v.pow.challenge, v.pow.counter, LIMITS.powBits) : null;
       if (!nonce) return json({ error: 'verification_required' }, 403);
-      if (!(await lim.claimMint(nonce, netVisitor, LIMITS.sessionsPerIpHour))) return json({ error: 'rate_hour', retryAfterSec: 3600 }, 429);
+      const minted = await lim.claimMint(nonce, netVisitor, LIMITS.sessionsPerIpHour);
+      if (minted === 'replay') return json({ error: 'verification_required' }, 403);
+      if (minted === 'limit') return json({ error: 'rate_sessions', retryAfterSec: 3600 }, 429);
     }
     const token = await signSession(env.SESSION_SIGNING_SECRET, LIMITS.sessionTtlSec);
     sessionId = token.split('.')[1];
