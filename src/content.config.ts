@@ -38,6 +38,13 @@ const site = defineCollection({
     tagline: z.string(),
     domain: z.string(),
     awards: z.array(z.string()).default([]),
+    experience: z.array(z.object({
+      org: z.string(), title: z.string(), period: z.string(), start: z.string().optional(), end: z.string().optional(),
+      place: z.string().optional(), project: z.string().optional(), summary: z.string().optional(),
+    })).default([]),
+    education: z.array(z.object({ school: z.string(), degree: z.string(), date: z.string(), detail: z.string().optional() })).default([]),
+    publications: z.array(z.object({ cite: z.string(), doi: z.string().optional(), project: z.string().optional() })).default([]),
+    skills: z.array(z.object({ area: z.string(), items: z.array(z.string()) })).default([]),
     links: z.array(link),
   }),
 });

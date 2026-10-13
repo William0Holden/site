@@ -6,6 +6,8 @@ import { cookie, getCookie, ipKey, issuePow, signSession, verifyPow, verifySessi
 import { streamRound, type ChatMessage } from './llm';
 import { chatTools, systemPrompt, toolDefinitions } from './prompt';
 import { WEB_SEARCH_TOOL, webSearch } from './websearch';
+import { RUN_SHELL_TOOL, runShell } from './shelltool';
+import { validate } from './validate';
 import type { Content, Ctx, PersonalEntry } from '../tools/registry';
 import personalData from './generated/personal.json';
 
@@ -45,37 +47,8 @@ export async function chatStatus(env: Env): Promise<Response> {
     enabled, resting,
     turnstileSiteKey: env.TURNSTILE_SECRET_KEY ? env.TURNSTILE_SITE_KEY ?? null : null,
     powBits: env.TURNSTILE_SECRET_KEY ? null : LIMITS.powBits,
-    limits: { perHour: LIMITS.perIpHour, perDay: LIMITS.perIpDay, turns: LIMITS.maxUserTurns, maxChars: LIMITS.maxMessageChars },
+    limits: { perHour: LIMITS.perIpHour, perDay: LIMITS.perIpDay, turns: LIMITS.maxUserTurns, maxChars: LIMITS.maxMessageChars, maxFitChars: LIMITS.maxFitChars },
   });
-}
-
-type InMsg = { role: 'user' | 'assistant'; content: string };
-
-type Pow = { challenge: string; counter: string };
-function validate(body: unknown): { ok: true; messages: InMsg[]; turnstileToken?: string; pow?: Pow } | { ok: false; status: number; error: string } {
-  const b = body as { messages?: unknown; turnstileToken?: unknown; pow?: { challenge?: unknown; counter?: unknown } };
-  if (!Array.isArray(b?.messages) || b.messages.length === 0) return { ok: false, status: 400, error: 'bad_request' };
-  if (b.messages.length > 2 * LIMITS.maxUserTurns + 2) return { ok: false, status: 429, error: 'conversation_limit' };
-  const messages: InMsg[] = [];
-  for (const m of b.messages as { role?: unknown; content?: unknown }[]) {
-    if ((m?.role !== 'user' && m?.role !== 'assistant') || typeof m.content !== 'string') return { ok: false, status: 400, error: 'bad_request' };
-    messages.push({ role: m.role, content: m.content.slice(0, 4000) });
-  }
-  const last = messages[messages.length - 1];
-  if (last.role !== 'user' || !last.content.trim()) return { ok: false, status: 400, error: 'bad_request' };
-  if (last.content.length > LIMITS.maxMessageChars) return { ok: false, status: 413, error: 'message_too_long' };
-  if (messages.filter((m) => m.role === 'user').length > LIMITS.maxUserTurns) return { ok: false, status: 429, error: 'conversation_limit' };
-  // Keep the most recent history within the character budget.
-  let total = 0;
-  const kept: InMsg[] = [];
-  for (let i = messages.length - 1; i >= 0; i--) {
-    total += messages[i].content.length;
-    if (total > LIMITS.maxHistoryChars && kept.length) break;
-    kept.unshift(messages[i]);
-  }
-  while (kept.length && kept[0].role !== 'user') kept.shift();
-  const pow = typeof b.pow?.challenge === 'string' && typeof b.pow?.counter === 'string' ? { challenge: b.pow.challenge, counter: b.pow.counter } : undefined;
-  return { ok: true, messages: kept, turnstileToken: typeof b.turnstileToken === 'string' ? b.turnstileToken : undefined, pow };
 }
 
 async function readCapped(req: Request, max: number): Promise<string | null> {
@@ -158,8 +131,8 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
       { role: 'system', content: [{ type: 'text', text: systemPrompt(content), cache_control: { type: 'ephemeral' } }] },
       ...v.messages,
     ];
-    const defs = [...toolDefinitions(), WEB_SEARCH_TOOL];
-    let webSearches = 0;
+    const defs = [...toolDefinitions(), WEB_SEARCH_TOOL, RUN_SHELL_TOOL];
+    let webSearches = 0, shellRuns = 0;
     const available = chatTools();
     let spent = 0;
     let toolChars = 0;
@@ -189,6 +162,19 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
               spent += r.costUsd;
               if (r.sources.length) send('ui', { component: 'WebSources', props: { sources: r.sources } });
               output = r.text;
+            }
+          } else if (call.function.name === 'run_shell') {
+            let command = '';
+            try { command = String(JSON.parse(call.function.arguments || '{}').command ?? ''); } catch { /* invalid */ }
+            if (!command.trim() || command.length > 300) output = 'Invalid arguments for run_shell.';
+            else if (shellRuns >= LIMITS.maxShellRunsPerRequest) output = 'run_shell limit reached for this message.';
+            else {
+              shellRuns++;
+              send('tool', { name: 'run_shell', hidden: false });
+              const r = (await runShell(content, command, req.signal)).slice(0, Math.max(200, Math.min(4000, LIMITS.maxToolOutputChars - toolChars)));
+              // The browser replays the same command in its own read-only sandbox to show it.
+              send('ui', { component: 'ShellRun', props: { command } });
+              output = r;
             }
           } else if (!t) output = `Unknown tool ${call.function.name}.`;
           else {
