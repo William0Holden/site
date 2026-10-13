@@ -1,4 +1,4 @@
-// Single source of truth for every way into the site: curl, /terminal, SSH, chat, MCP.
+// Single source of truth for every way into the site: curl, /terminal, chat, MCP.
 // Adding a tool is a one-entry change here. Handlers are pure over the public content export.
 import { z } from 'zod';
 
@@ -313,7 +313,7 @@ tools.push(tool({
     const curl = listed.filter((t) => t.cli?.path).map((t) => [`curl ${ctx.host}${t.cli!.path!.replace(/:(\w+)/g, '<$1>')}`, t.description]);
     const cmds = listed.map((t) => [t.cli?.usage ?? t.cli?.aliases?.[0] ?? t.name, t.description]);
     const fmt = (rows: string[][]) => { const w = Math.max(...rows.map((r) => r[0].length)); return rows.map(([a, b]) => `  ${p(a.padEnd(w), 'blue')}  ${b}`).join('\n'); };
-    return { text: `\n${p('curl', 'bold')}\n${fmt(curl)}\n\n${p('terminal / ssh', 'bold')}\n${fmt(cmds)}\n` };
+    return { text: `\n${p('curl', 'bold')}\n${fmt(curl)}\n\n${p('terminal', 'bold')}\n${fmt(cmds)}\n` };
   },
 }));
 
@@ -358,7 +358,7 @@ export function resolvePath(pathname: string): { tool: Tool; input: unknown } | 
   return null;
 }
 
-// Public manifest (no handlers) for SSH, MCP, and the chat's "what I can do" panel.
+// Public manifest (no handlers) for MCP and other clients.
 export const manifest = () =>
   tools.filter((t) => t.visibility === 'listed' && t.tier === 'public').map((t) => ({
     name: t.name, description: t.description, visibility: t.visibility, tier: t.tier, surfaces: t.surfaces,

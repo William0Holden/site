@@ -38,4 +38,3 @@ variables). `keep_vars: true` keeps dashboard values across deploys. Locally the
 Chat limits (per visitor/conversation) are constants in `worker/config.ts`. Check a model with
 `set -a; . ~/.config/wholden/secrets.env; set +a; node scripts/eval-tools.ts [model]`.
 
-| `SSH_CHAT_TOKEN` | secret | 3 | Server-to-server token the SSH app uses for `/api/chat` |
