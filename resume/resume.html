@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>William O. Holden · Resume</title>
+<style>
+  @page { size: Letter; margin: 0.35in 0.5in; }
+  * { box-sizing: border-box; }
+  body { font-family: "Carlito", "Calibri", "Helvetica Neue", Arial, sans-serif; font-size: 9.1pt; line-height: 1.18; color: #111; margin: 0; }
+  h1 { font-size: 19pt; letter-spacing: .06em; margin: 0; text-align: center; }
+  .contact { text-align: center; margin: 2px 0 6px; font-size: 9.4pt; }
+  .contact a { color: #111; text-decoration: none; }
+  h2 { font-size: 10.4pt; letter-spacing: .08em; border-bottom: 1px solid #333; margin: 6px 0 3px; padding-bottom: 1px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; }
+  .row b { font-weight: 700; }
+  .sub { font-style: italic; }
+  ul { margin: 2px 0 4px; padding-left: 15px; }
+  li { margin: 1px 0; }
+  p { margin: 2px 0; }
+  .skills p { margin: 1px 0; }
+  body:not(.private) .private-only { display: none; }
+</style>
+</head>
+<body>
+<h1>WILLIAM O. HOLDEN</h1>
+<p class="contact">Atlanta, GA<span class="private-only"> · {{PHONE}}</span> · <a href="mailto:williamhold02@gmail.com">williamhold02@gmail.com</a><br>
+<a href="https://wholden.com">wholden.com</a> · <a href="https://www.linkedin.com/in/william-olan-holden">linkedin.com/in/william-olan-holden</a> · <a href="https://github.com/william0holden">github.com/william0holden</a></p>
+
+<h2>SUMMARY</h2>
+<p>AI Engineer building internal agentic and retrieval-augmented platforms at Aderant: three applications in seven months, each automating manual work for the teams behind the company's legal software. Background spans full-stack development, LLM orchestration, and deep learning for computer vision and NLP, with peer-reviewed research in <i>Computers and Electronics in Agriculture</i>.</p>
+
+<h2>PROFESSIONAL EXPERIENCE</h2>
+<div class="row"><b>Aderant</b><span>Dec 2025 – Present</span></div>
+<div class="row sub"><span>AI Engineer, Docketing &amp; VI Engineering</span><span>Atlanta, GA (Hybrid)</span></div>
+<ul>
+  <li>Designed and delivered three internal AI applications in seven months, each replacing a manual process for the teams that maintain Aderant's docketing and legal-content products.</li>
+  <li>Built an internal change-detection platform that monitors 60,000+ court, agency, and judicial forms in the Forms Workflow content library, surfacing revisions to the content team as structured, reviewable diffs instead of manual periodic checks.</li>
+  <li>Architected an agentic court rules monitoring tool for Aderant's internal rules-monitoring team: crawls court websites across U.S. jurisdictions via Browserbase remote browsers, filters DOM noise to isolate true-positive changes, and applies Claude reasoning via Bedrock to judge whether a change materially affects a rule or filing deadline, sharply reducing false-positive review volume.</li>
+  <li>Developed an internal competitive intelligence hub for product, marketing, and sales: deduplicates external news signals alongside Aha! and Marketo data into a RAG pipeline over a vector store, letting teams chat with the corpus and auto-generate battlecards, newsletters, and briefs grounded in cited sources.</li>
+  <li>Embedded an SDLC agent across the team's internal tooling that intercepts inbound bug reports and enhancement requests, validates and normalizes them with an LLM, then routes clean, deduplicated tickets straight into GitHub Projects and Slack, removing manual triage from intake.</li>
+  <li>Stack: Python, TypeScript/React, AWS (Bedrock, AgentCore, Lambda, ECS/EKS, EC2, Aurora/RDS, S3, Route 53), Claude Platform, Browserbase, Terraform, Flux GitOps, Grafana.</li>
+</ul>
+<div class="row"><b>University of Georgia, School of Computing</b><span>2024 – Dec 2025</span></div>
+<div class="row sub"><span>Graduate Research Assistant, Computer Vision</span><span>Athens, GA</span></div>
+<ul>
+  <li>Built a spatiotemporal video encoder with metadata fusion (X3D 3D-CNN + YOLO tracking) for automated broiler-chicken behavior recognition from smartphone farm footage: 87% test accuracy (macro F1 0.87) across five behaviors.</li>
+  <li>Developed motion-correction algorithms to normalize avian kinematics and remove human-handling bias, enabling reliable velocity and acceleration metrics from handheld video.</li>
+  <li>1st Place, UGA Artificial Intelligence in Livestock and Poultry Farming Conference poster competition (Sep 2025).</li>
+</ul>
+
+<h2>SELECTED PROJECTS</h2>
+<div class="row"><b>DeckTection: Trading Card Identification Pipeline</b><span>PyTorch, YOLOv12, SAM2</span></div>
+<ul><li>Engineered an end-to-end CV pipeline (YOLOv12 → SAM2 → Siamese network); fine-tuned YOLOv12 to 99.49% mAP50 and trained a ResNet-18 Siamese network to 95% one-shot accuracy across 4,000 cards.</li></ul>
+<div class="row"><b>Whisper Inference Optimization</b><span>ONNX Runtime, Quantization</span></div>
+<ul><li>Quantized the Whisper encoder to INT8, cutting model size 70% with no material word-accuracy loss (LibriSpeech); implemented Winograd convolution for 1D layers for 60% compression enabling mobile deployment.</li></ul>
+<div class="row"><b>Evaluating LLMs as Translators</b><span>MATEO, COMET, BLEU</span></div>
+<ul><li>Benchmarked 15 Korean→English systems (DeepL, Google, GPT-5, Claude, DeepSeek, local Llama/Qwen/Gemma models) against a memoQ reference; best COMET 91.3, metrics correlated at r = 0.92–0.98.</li></ul>
+<div class="row"><b>Cinema E-Booking Platform</b><span>React, Django, SQL</span></div>
+<ul><li>Full-stack booking system; led Agile sprints for a 5-engineer team.</li></ul>
+
+<h2>TECHNICAL SKILLS</h2>
+<div class="skills">
+<p><b>Languages:</b> Python, JavaScript/TypeScript, Java, C++, C, SQL, R</p>
+<p><b>AI &amp; ML:</b> Agentic workflows &amp; LLM orchestration, RAG, vector search, prompt engineering, Claude Platform, Amazon Bedrock, AgentCore, PyTorch, TensorFlow, scikit-learn, OpenCV, YOLO, SAM, ONNX</p>
+<p><b>Cloud &amp; DevOps:</b> AWS (EC2, ECS, EKS, Lambda, S3, Route 53, Aurora/RDS, Bedrock), Terraform, Flux GitOps, Docker, Grafana, Git/GitHub Actions</p>
+<p><b>Data &amp; Web:</b> React, Node.js, Django, REST APIs, Aurora/PostgreSQL, MongoDB, SQL Server, Aha!, Marketo</p>
+<p><b>Tools:</b> <span class="private-only">Claude Code, Cursor, </span>Glean, Browserbase, Playwright, Postman</p>
+</div>
+
+<h2>EDUCATION</h2>
+<div class="row"><span><b>University of Georgia</b>, M.S. in Artificial Intelligence, GPA 3.73</span><span>Dec 2025</span></div>
+<div class="row"><span><b>University of Georgia</b>, B.S. in Computer Science, Honors Program, Presidential Scholar, Dean's List</span><span>Dec 2024</span></div>
+
+<h2>PUBLICATION</h2>
+<p>Holden, W.O., Li, G., Agyemang-Duah, E., et al. "Spatiotemporal video encoder integrated with metadata fusion for action recognition and behavior analysis." <i>Computers and Electronics in Agriculture</i> 253 (2026), 112159. doi:10.1016/j.compag.2026.112159 (IF 10.3).</p>
+</body>
+</html>
