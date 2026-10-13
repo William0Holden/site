@@ -16,5 +16,116 @@
     "alt": "William O. Holden's one-page resume as a PDF",
     "caption": "Phone number removed for the web.",
     "projects": []
+  },
+  {
+    "id": "broiler-behaviors",
+    "type": "video",
+    "src": "/media/broiler-behaviors.mp4",
+    "poster": "/media/broiler-behaviors.jpg",
+    "title": "Labeled behavior clips",
+    "alt": "Looping close-up clips of broiler chickens, each labeled with its behavior: drinking at a waterer, eating at a feeder, resting on litter, and walking.",
+    "caption": "Sample clips from the action-recognition dataset: drinking, eating, resting, walking.",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "pipeline-overview",
+    "type": "image",
+    "src": "src/assets/broiler/pipeline-overview.png",
+    "title": "End-to-end pipeline",
+    "alt": "Flow diagram: input video goes through stabilization, YOLOv11-Pose detection and ByteTrack tracking, clip and metadata extraction, and X3D+MLP classification, then post-processing that outputs CSV files, annotated videos, heatmaps and trajectories.",
+    "caption": "The pipeline: preprocessing, detection and tracking, feature engineering, action classification, analytics.",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "x3d-metadata-fusion",
+    "type": "image",
+    "src": "src/assets/broiler/x3d-metadata-fusion.png",
+    "title": "X3D + metadata fusion",
+    "alt": "Architecture diagram: a 32-frame clip passes through an X3D-M backbone into 512 visual features while pose metadata (velocity, distance to equipment) passes through an MLP into 64 context features; the two are concatenated into 576 dimensions and fed to a five-class classifier (resting, walking, standing, drinking, eating).",
+    "caption": "X3D video features fused with pose metadata through an MLP.",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "raw-vs-stabilized",
+    "type": "image",
+    "src": "src/assets/broiler/raw-vs-stabilized.jpg",
+    "title": "Video stabilization",
+    "alt": "Two frames of the same chicken pen side by side: the raw frame on the left has heavy motion blur; the stabilized frame on the right is sharp, with black borders from the warp.",
+    "caption": "Raw handheld frame (left) vs. stabilized frame (right).",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "annotated-tracking-frame",
+    "type": "image",
+    "src": "src/assets/broiler/annotated-tracking-frame.jpg",
+    "title": "Tracking and action labels",
+    "alt": "Overhead frame of white broiler chickens around feeders and drinkers, each with a colored bounding box labeled with a track ID, a predicted action (resting, eating, drinking, standing) and a confidence score.",
+    "caption": "Every bird tracked with an ID and a predicted behavior.",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "confusion-matrix",
+    "type": "image",
+    "src": "src/assets/broiler/confusion-matrix.png",
+    "title": "Test-set confusion matrix",
+    "alt": "Five-by-five confusion matrix for resting, walking, standing, drinking and eating with a strong diagonal; the largest confusion is standing predicted as walking.",
+    "caption": "Confusion matrix on the test set.",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "x3d-training-curves",
+    "type": "image",
+    "src": "src/assets/broiler/x3d-training-curves.png",
+    "title": "Training curves",
+    "alt": "Two line charts over 50 epochs: training loss falls from about 8 to below 0.5 while validation loss levels near 2; training accuracy reaches about 96% and validation accuracy about 82 to 87%.",
+    "caption": "Loss and accuracy over 50 epochs.",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "chicken-trajectories",
+    "type": "image",
+    "src": "src/assets/broiler/chicken-trajectories.png",
+    "title": "Movement trajectories",
+    "alt": "Plot of the pen in pixel coordinates with colored paths for individual chickens, green start points and red X end points; most birds stay clustered while a few roam widely.",
+    "caption": "Individual trajectories across a session.",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "overall-density-heatmap",
+    "type": "image",
+    "src": "src/assets/broiler/overall-density-heatmap.png",
+    "title": "Spatial density heatmap",
+    "alt": "Heatmap of the pen floor with bright hotspots where birds gathered, mostly along the top edge and around the left-center.",
+    "caption": "Where the flock spent its time.",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "first-build-2020",
+    "type": "image",
+    "src": "src/assets/homelab/first-build-2020.jpg",
+    "title": "First homelab build",
+    "alt": "Bare motherboard with a stock cooler, RAM, a graphics card and two loose hard drives wired up on top of a cardboard box on a bathroom counter.",
+    "caption": "Where it started: the first build, on a cardboard box, December 2020.",
+    "projects": [
+      "homelab"
+    ]
   }
 ]
