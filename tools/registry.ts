@@ -190,11 +190,17 @@ const words = (s: string) => s.toLowerCase().match(/[a-z0-9+#.-]{2,}/g) ?? [];
 tools.push(
   tool({
     name: 'show_media',
-    description: 'Show images, figures, or video for a project (by project slug) or a single media id.',
-    input: z.object({ project: z.string().regex(/^[a-z0-9-]{1,64}$/i).optional(), id: z.string().regex(/^[a-z0-9-]{1,64}$/i).optional() }),
+    description: 'Show images, figures, or video inline. Pick specific media ids from the media catalog (best: the 1-3 most relevant), or a project slug for all of its media.',
+    input: z.object({
+      ids: z.array(z.string().regex(/^[a-z0-9-]{1,64}$/i)).max(6).optional().describe('Media ids from the catalog, most relevant first'),
+      project: z.string().regex(/^[a-z0-9-]{1,64}$/i).optional(),
+      id: z.string().regex(/^[a-z0-9-]{1,64}$/i).optional(),
+    }),
     visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
-    async handler({ project, id }, ctx) {
-      const items = id ? mediaFor(ctx, [id]) : project ? (findProject(ctx, project)?.media ?? []).map((m) => mediaFor(ctx, [m])[0]).filter(Boolean) : [];
+    async handler({ ids, project, id }, ctx) {
+      const picked = ids?.length ? ids : id ? [id] : [];
+      const items = (picked.length ? mediaFor(ctx, picked) : project ? (findProject(ctx, project)?.media ?? []).map((m) => mediaFor(ctx, [m])[0]).filter(Boolean) : [])
+        .filter((m) => m.type === 'image' || m.type === 'video');
       if (!items.length) return { text: `No media found${project ? ` for "${project}"` : ''}. Projects with media: ${ctx.content.projects.filter((p) => p.media.length).map((p) => p.slug).join(', ') || 'none'}.` };
       return {
         text: `Showing ${items.length} item(s): ` + items.map((m) => `${m.title} (${m.caption})`).join('; '),

@@ -154,7 +154,6 @@ export default function Terminal() {
       setEntries((prev) => prev.filter((x) => !(x.k === 'ai' && !x.text)));
     }
     chat.current = [...messages, { role: 'assistant', content: full.slice(0, 3000) }];
-    store.set(CHAT_STORE, JSON.stringify(chat.current), session());
     if (!io.isTTY) io.out(stripAnsi(mdToAnsi(full)) + '\n');
     return 0;
 
@@ -196,7 +195,7 @@ export default function Terminal() {
       requestAnimationFrame(() => ta.current?.focus());
     }),
     ask: (q, io, opts) => ask(q, io, opts),
-    resetChat: () => { chat.current = []; store.set(CHAT_STORE, '[]', session()); },
+    resetChat: () => { chat.current = []; },
     persist,
     exit: () => { modeRef.current = 'exited'; },
     clear: () => { queue.current = []; setEntries([]); },
@@ -277,7 +276,8 @@ export default function Terminal() {
   // ---- startup ----
   useEffect(() => {
     restoreTheme();
-    try { const saved = store.get(CHAT_STORE, session()); if (saved) chat.current = JSON.parse(saved); } catch { /* ignore */ }
+    // Every visit starts a fresh conversation; drop anything an older version saved.
+    store.set(CHAT_STORE, '', session());
     fetch('/api/content.json').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); }).then(async (ct: Content) => {
       setContent(ct);
       const shell = boot(ct);
