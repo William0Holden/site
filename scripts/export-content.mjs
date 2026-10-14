@@ -1,7 +1,7 @@
 // Build step: export public content as JSON so the Worker (curl, MCP), the Go SSH app, and the
 // chat all read the same data as the website. Never include content/personal here.
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, copyFileSync, existsSync, statSync } from 'node:fs';
-import { join, extname } from 'node:path';
+import { join, extname, dirname } from 'node:path';
 import matter from 'gray-matter';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -35,6 +35,22 @@ writeFileSync(
   JSON.stringify({ site: { ...site.data, bio: stripComments(site.content) }, projects, media, builtAt: Date.now() }, null, 2),
 );
 console.log(`exported ${projects.length} projects to dist/api/content.json`);
+
+// Code index (built by scripts/index-code.mjs from public repos): one file the Worker reads for
+// search, plus raw files the browser fetches to render code blocks.
+const codeDir = join(root, 'content/code');
+if (existsSync(codeDir)) {
+  const repos = readdirSync(codeDir).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(codeDir, f), 'utf8')));
+  mkdirSync(join(out, 'code'), { recursive: true });
+  writeFileSync(join(out, 'code/all.json'), JSON.stringify(repos));
+  writeFileSync(join(out, 'code/index.json'), JSON.stringify(repos.map(({ files, ...r }) => ({ ...r, paths: files.map((f) => f.path) }))));
+  for (const r of repos) for (const f of r.files) {
+    const dest = join(out, 'code', r.name, f.path + '.txt');
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, f.text);
+  }
+  console.log(`exported code index: ${repos.length} repos, ${repos.reduce((n, r) => n + r.files.length, 0)} files`);
+}
 
 const { manifest } = await import('../tools/registry.ts');
 writeFileSync(join(out, 'registry.json'), JSON.stringify(manifest(), null, 2));

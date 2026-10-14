@@ -51,8 +51,12 @@ export async function verifySession(secret: string | undefined, token: string | 
 /** IPv6 clients usually control a whole /64, so rate-limit on the prefix. */
 export function ipKey(ip: string) {
   if (!ip.includes(':')) return ip;
-  const parts = ip.split('::')[0].split(':');
-  return parts.length >= 4 ? parts.slice(0, 4).join(':') + '::/64' : ip;
+  const [head, tail] = ip.toLowerCase().split('::');
+  const h = head ? head.split(':') : [];
+  const t = tail !== undefined ? (tail ? tail.split(':') : []) : [];
+  const groups = tail !== undefined ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t] : h;
+  if (groups.length < 4) return ip;
+  return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, '')).join(':') + '::/64';
 }
 export const visitorId = async (secret: string, key: string) => (await hmac(secret, `visitor.${key}`)).slice(0, 22);
 
