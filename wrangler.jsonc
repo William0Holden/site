@@ -20,6 +20,8 @@
   },
   // Rate limits + global daily LLM budget (SQLite-backed Durable Object, free tier).
   "durable_objects": { "bindings": [{ "name": "LIMITER", "class_name": "Limiter" }] },
+  // Contact messages from visitors, delivered only to William's verified Email Routing address.
+  "send_email": [{ "name": "EMAIL", "allowed_destination_addresses": ["williamhold02@gmail.com"] }],
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Limiter"] }],
   "routes": [{ "pattern": "wholden.com", "custom_domain": true }],
   "observability": { "enabled": true }

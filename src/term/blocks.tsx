@@ -2,7 +2,8 @@
 // Every prop is looked up against public content, so the model can't inject markup or URLs.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
-import type { Content, Media, Project } from '../../tools/registry';
+import { composeOnePager, onePagerHtml, onePagerMarkdown, type Content, type Media, type Project } from '../../tools/registry';
+import { githubUrl, MAX_READ_LINES, type RepoMeta, type Source } from '../../tools/code';
 import { skillUses, timelineItems } from '../../shell/portfolio';
 
 type Props = { content: Content; props: Record<string, unknown> };
@@ -225,6 +226,162 @@ function SkillMap({ content, props }: Props) {
   );
 }
 
+
+// ---- code, sources, messages, one-pager ----
+let repoIndex: Promise<RepoMeta[]> | null = null;
+const repos = () => (repoIndex ??= fetch('/api/code/index.json').then((r) => (r.ok ? r.json() : [])).catch(() => []));
+const useRepos = () => {
+  const [list, setList] = useState<RepoMeta[] | null>(null);
+  useEffect(() => { let live = true; repos().then((l) => live && setList(l)); return () => { live = false; }; }, []);
+  return list;
+};
+
+const COMMENT = /^\s*(#|\/\/|--|\/\*|\*|<!--)/;
+const KEYWORDS = /\b(def|class|return|import|from|as|if|elif|else|for|while|in|with|try|except|finally|raise|yield|lambda|async|await|function|const|let|var|export|default|new|interface|type|public|private|static|void|self|this|None|True|False|null|true|false)\b/g;
+function CodeLine({ text }: { text: string }) {
+  if (COMMENT.test(text)) return <span className="code-c">{text}</span>;
+  const parts: (string | ReactElement)[] = [];
+  let last = 0, k = 0;
+  for (const m of text.matchAll(KEYWORDS)) { parts.push(text.slice(last, m.index), <b key={k++}>{m[0]}</b>); last = m.index! + m[0].length; }
+  parts.push(text.slice(last));
+  return <>{parts}</>;
+}
+
+function CodeBlock({ props }: Props) {
+  const list = useRepos();
+  const [text, setText] = useState<string | null>(null);
+  const meta = list?.find((r) => r.name === props.repo);
+  const path = String(props.path ?? '');
+  const ok = Boolean(meta?.paths.includes(path));
+  const start = Math.max(1, Number(props.start) || 1);
+  const end = Math.min(start + MAX_READ_LINES - 1, Math.max(start, Number(props.end) || start + 40));
+  useEffect(() => {
+    if (!meta || !ok) return;
+    let live = true;
+    fetch(`/api/code/${encodeURIComponent(meta.name)}/${path.split('/').map(encodeURIComponent).join('/')}.txt`).then((r) => (r.ok ? r.text() : '')).then((t) => live && setText(t));
+    return () => { live = false; };
+  }, [meta, ok, path]);
+  if (list && !ok) return null;
+  const lines = text?.split('\n').slice(start - 1, end) ?? [];
+  const w = String(end).length;
+  return (
+    <figure className="code">
+      <figcaption className="code-bar">
+        <span className="code-path">{meta?.team && <span className="code-team">team repo</span>}{props.repo as string}/{path} <span className="cm-muted">L{start}–{Math.min(end, start + lines.length - 1 || end)}</span></span>
+        {meta && <a href={githubUrl(meta, path, start, end)} target="_blank" rel="noopener">GitHub ↗</a>}
+      </figcaption>
+      <pre className="code-body">{text === null ? <span className="cm-muted">loading…</span> : lines.map((l, i) => (
+        <span key={i} className="code-row"><span className="code-n" aria-hidden="true">{String(start + i).padStart(w)}</span><CodeLine text={l} />{'\n'}</span>
+      ))}</pre>
+    </figure>
+  );
+}
+
+function Sources({ content, props }: Props) {
+  const run = useContext(RunContext);
+  const list = useRepos();
+  const refs = (Array.isArray(props.refs) ? props.refs : []) as Source[];
+  const seen = new Set<string>();
+  const items = refs.map((r, k) => {
+    const key = JSON.stringify(r);
+    if (seen.has(key)) return null;
+    seen.add(key);
+    if (r.kind === 'project') {
+      const p = content.projects.find((x) => x.slug === r.slug);
+      return p ? <li key={k}><button type="button" className="cm-linkbtn" onClick={() => run(`open ${p.slug}`)}>{p.title}</button> <span className="cm-muted">project write-up</span></li> : null;
+    }
+    if (r.kind === 'site') return <li key={k}><button type="button" className="cm-linkbtn" onClick={() => run('resume')}>resume</button> <span className="cm-muted">{r.label.replace(/^resume: /, '')}</span></li>;
+    if (r.kind === 'repo') {
+      const meta = list?.find((x) => x.name === r.repo);
+      if (!meta || !meta.paths.includes(r.path)) return null;
+      return <li key={k}><a href={githubUrl(meta, r.path, r.start, r.end)} target="_blank" rel="noopener">{r.repo}/{r.path}</a> <span className="cm-muted">L{r.start}–{r.end}</span></li>;
+    }
+    return null;
+  }).filter(Boolean);
+  if (!items.length) return null;
+  return <div className="cm-sources src"><span className="cm-eyebrow">Sources</span><ul>{items}</ul></div>;
+}
+
+const MESSAGE_ERRORS: Record<string, string> = {
+  name_required: 'Add your name.', email_invalid: 'That email address doesn’t look right.', note_too_short: 'Write a little more (10+ characters).',
+  rate_messages: 'Message limit reached for today. Email him directly instead.', verification_required: 'Ask the assistant a question first (that verifies the browser), then send.',
+  not_configured: 'Messages are offline right now. Email him directly instead.', send_failed: 'Sending failed. Try again, or email him directly.',
+};
+function MessageForm({ content, props }: Props) {
+  const [f, setF] = useState({ name: String(props.name ?? '').slice(0, 80), email: String(props.email ?? '').slice(0, 120), note: String(props.note ?? '').slice(0, 2000), website: '' });
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [err, setErr] = useState('');
+  const mail = content.site.links.find((l) => l.url.startsWith('mailto:'))?.url.slice(7);
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setState('sending'); setErr('');
+    try {
+      const r = await fetch('/api/message', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(f), credentials: 'same-origin' });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) setState('sent');
+      else { setState('error'); setErr(MESSAGE_ERRORS[d.error] ?? 'Something went wrong.'); }
+    } catch { setState('error'); setErr(MESSAGE_ERRORS.send_failed); }
+  };
+  if (state === 'sent') return <div className="msg msg-sent"><strong>✓ Sent.</strong> <span className="cm-muted">William will reply to {f.email}.</span></div>;
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  return (
+    <form className="msg" onSubmit={send} data-nofocus>
+      <span className="cm-eyebrow">Message to William</span>
+      <label>name<input value={f.name} onChange={set('name')} maxLength={80} required autoComplete="name" /></label>
+      <label>email<input type="email" value={f.email} onChange={set('email')} maxLength={120} required autoComplete="email" /></label>
+      <label>message<textarea value={f.note} onChange={set('note')} maxLength={2000} rows={5} required minLength={10} /></label>
+      <input className="msg-hp" tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.website} onChange={set('website')} />
+      <span className="msg-actions">
+        <button type="submit" className="cm-btn" disabled={state === 'sending'}>{state === 'sending' ? 'sending…' : 'Send'}</button>
+        {mail && <span className="cm-muted">or email <a href={`mailto:${mail}`}>{mail}</a></span>}
+      </span>
+      {err && <span className="msg-err" role="alert">{err}</span>}
+    </form>
+  );
+}
+
+function OnePager({ content, props }: Props) {
+  const o = composeOnePager(content, {
+    role: String(props.role ?? ''),
+    requirements: (Array.isArray(props.requirements) ? props.requirements : []).map(String).slice(0, 10),
+    projects: (Array.isArray(props.projects) ? props.projects : []).map(String).slice(0, 4),
+  });
+  const file = `William-Holden${o.role ? '-' + o.role.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') : ''}`.slice(0, 80);
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([onePagerMarkdown(o)], { type: 'text/markdown' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: `${file}.md` });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const print = () => {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(onePagerHtml(o));
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 250);
+  };
+  return (
+    <div className="op">
+      <div className="op-bar">
+        <span className="cm-eyebrow">One-pager{o.role ? ` · ${o.role}` : ''}</span>
+        <span className="op-actions"><button type="button" className="cm-btn" onClick={print}>Save as PDF</button><button type="button" className="cm-btn" onClick={download}>Download .md</button></span>
+      </div>
+      <article className="op-page">
+        <h3>{o.name}</h3>
+        <p className="op-m">{o.headline} · {o.contact.join(' · ')}</p>
+        {o.role && <p className="op-role">Relevant experience for: {o.role}</p>}
+        <h4>Experience</h4>
+        {o.experience.map((e) => <p key={e.org}><b>{e.title}</b>, {e.org} <span className="op-m">{e.period}</span><br />{e.summary}</p>)}
+        <h4>Selected projects</h4>
+        {o.projects.map((p) => <div key={p.slug}><p><b>{p.title}</b> <span className="op-m">{p.period}</span><br />{p.summary}</p>{p.bullets.length > 0 && <ul>{p.bullets.map((b) => <li key={b}>{b}</li>)}</ul>}</div>)}
+        <h4>Skills</h4><p>{o.skills.join(', ')}</p>
+        <h4>Education</h4><ul>{o.education.map((e) => <li key={e}>{e}</li>)}</ul>
+      </article>
+    </div>
+  );
+}
+
 function ProjectCard({ content, props }: Props) {
   const run = useContext(RunContext);
   const p = content.projects.find((x) => x.slug === props.slug);
@@ -347,7 +504,7 @@ function FitReport({ content, props }: Props) {
   );
 }
 
-const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { ProfileHeader, ProjectGrid, Timeline, SkillMap, FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
+const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { CodeBlock, Sources, MessageForm, OnePager, ProfileHeader, ProjectGrid, Timeline, SkillMap, FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
 
 export function UiBlock({ content, ui }: { content: Content | null; ui: { component: string; props: Record<string, unknown> } }) {
   const C = REGISTRY[ui.component];

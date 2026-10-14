@@ -26,7 +26,8 @@ export class LimiterCore {
       CREATE INDEX IF NOT EXISTS hits_visitor_ts ON hits (visitor, ts);
       CREATE TABLE IF NOT EXISTS spend (day TEXT PRIMARY KEY, usd REAL NOT NULL);
       CREATE TABLE IF NOT EXISTS pow_used (nonce TEXT PRIMARY KEY, ts INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS mints (visitor TEXT NOT NULL, ts INTEGER NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS mints (visitor TEXT NOT NULL, ts INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS messages (visitor TEXT NOT NULL, ts INTEGER NOT NULL);`);
   }
 
   spentToday(now: number): number {
@@ -37,6 +38,25 @@ export class LimiterCore {
   spentMonth(now: number): number {
     const row = this.sql.exec<{ usd: number }>('SELECT COALESCE(SUM(usd), 0) AS usd FROM spend WHERE day LIKE ?', today(now).slice(0, 7) + '%').toArray()[0];
     return row?.usd ?? 0;
+  }
+
+  /** Count a contact message against the visitor's and the site's daily caps; false when over either. */
+  claimMessage(visitors: string[], perVisitorDay: number, globalDay: number, now = Date.now()): boolean {
+    this.sql.exec('DELETE FROM messages WHERE ts < ?', now - DAY);
+    // Every key (network and session) must be under its cap; the site-wide count uses the first key only.
+    for (const v of visitors) {
+      const n = this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM messages WHERE visitor = ?', v).toArray()[0].n;
+      if (n >= perVisitorDay) return false;
+    }
+    const all = this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM messages WHERE visitor = ?', '*').toArray()[0].n;
+    if (all >= globalDay) return false;
+    for (const v of [...visitors, '*']) this.sql.exec('INSERT INTO messages (visitor, ts) VALUES (?, ?)', v, now);
+    return true;
+  }
+
+  /** Give back a claimed message slot (the email failed to send). */
+  refundMessage(visitors: string[]) {
+    for (const v of visitors) this.sql.exec('DELETE FROM messages WHERE rowid = (SELECT MAX(rowid) FROM messages WHERE visitor = ?)', v);
   }
 
   /** Accept a solved proof-of-work once, and cap new sessions per network per hour. */

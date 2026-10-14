@@ -8,16 +8,31 @@ import { chatTools, systemPrompt, toolDefinitions } from './prompt';
 import { WEB_SEARCH_TOOL, webSearch } from './websearch';
 import { RUN_SHELL_TOOL, runShell } from './shelltool';
 import { validate } from './validate';
+import { readCapped } from './body';
 import type { Content, Ctx, PersonalEntry } from '../tools/registry';
+import type { CodeIndex } from '../tools/code';
 import personalData from './generated/personal.json';
 
 const personal = personalData as PersonalEntry[];
 let contentCache: { at: number; data: Content } | null = null;
+let codeCache: { at: number; data: Promise<CodeIndex> } | null = null;
 
 export async function loadContent(env: Env, url: URL): Promise<Content> {
   if (contentCache && Date.now() - contentCache.at < 60_000) return contentCache.data;
   const data = (await (await env.ASSETS.fetch(new URL('/api/content.json', url))).json()) as Content;
   contentCache = { at: Date.now(), data };
+  return data;
+}
+
+// The public-repo code index (about 1.5 MB), fetched only when a code or search tool needs it.
+export function loadCode(env: Env, url: URL): Promise<CodeIndex> {
+  if (codeCache && Date.now() - codeCache.at < 10 * 60_000) return codeCache.data;
+  const data = env.ASSETS.fetch(new URL('/api/code/all.json', url)).then((r) => {
+    if (!r.ok) throw new Error(`code index ${r.status}`);
+    return r.json() as Promise<CodeIndex>;
+  });
+  codeCache = { at: Date.now(), data };
+  data.catch(() => { codeCache = null; });
   return data;
 }
 
@@ -51,24 +66,6 @@ export async function chatStatus(env: Env): Promise<Response> {
   });
 }
 
-async function readCapped(req: Request, max: number): Promise<string | null> {
-  if (Number(req.headers.get('content-length') ?? 0) > max) return null;
-  if (!req.body) return '';
-  const reader = req.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > max) { await reader.cancel(); return null; }
-    chunks.push(value);
-  }
-  const all = new Uint8Array(size);
-  let o = 0;
-  for (const c of chunks) { all.set(c, o); o += c.byteLength; }
-  return new TextDecoder().decode(all);
-}
 
 function sameOrigin(req: Request, url: URL) {
   const origin = req.headers.get('origin');
@@ -119,7 +116,7 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
 
   const unlocked = await verifyToken(env.UNLOCK_SIGNING_SECRET, 'unlock', getCookie(req, 'unlock'));
   const content = await loadContent(env, url);
-  const toolCtx: Ctx = { content, host: url.host, ansi: false, personal, unlocked };
+  const toolCtx: Ctx = { content, host: url.host, ansi: false, personal, unlocked, loadCode: () => loadCode(env, url) };
 
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();

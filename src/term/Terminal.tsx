@@ -116,6 +116,7 @@ export default function Terminal() {
     for (let i = chat.current.length - 1; i >= 0; i--) if (chat.current[i].role === 'user' && ++n === MAX_CHAT_TURNS - 1) { chat.current = chat.current.slice(i); break; }
     const messages: ChatMsg[] = [...chat.current, { role: 'user', content: q }];
     let full = '';
+    const used = new Set<string>();
     let aiId: number | null = null;
     const startAi = (note?: string) => {
       flush();
@@ -140,7 +141,7 @@ export default function Terminal() {
       full = await askAssistant(messages, {
         mode: opts?.kind, signal: io.signal,
         // Events apply in arrival order, after any command replay still running.
-        onEvent: (e) => { if (io.isTTY) replay = replay.then(() => apply(e)); },
+        onEvent: (e) => { if (e.type === 'tool') used.add(e.name); if (io.isTTY) replay = replay.then(() => apply(e)); },
       });
       await replay;
     } catch (e) {
@@ -153,7 +154,9 @@ export default function Terminal() {
       if (aiId !== null) patchAi(aiId, (x) => ({ ...x, note: undefined }));
       setEntries((prev) => prev.filter((x) => !(x.k === 'ai' && !x.text)));
     }
-    chat.current = [...messages, { role: 'assistant', content: full.slice(0, 3000) }];
+    // Tool results aren't kept in history, so note which tools backed this reply (see prompt rule 11).
+    const backed = used.size ? `\n\n[tools used: ${[...used].join(', ')}]` : '';
+    chat.current = [...messages, { role: 'assistant', content: full.slice(0, 3000 - backed.length) + backed }];
     if (!io.isTTY) io.out(stripAnsi(mdToAnsi(full)) + '\n');
     return 0;
 
@@ -466,7 +469,7 @@ export default function Terminal() {
   return (
     <RunContext.Provider value={runCommand}>
       {/* Portalled overlays (the lightbox) bubble React clicks here too; only real terminal clicks focus the prompt. */}
-      <div className="term" onClick={(e) => { if (e.currentTarget.contains(e.target as Node)) focus(); }}>
+      <div className="term" onClick={(e) => { if (e.currentTarget.contains(e.target as Node) && !(e.target as Element).closest('input, textarea, select, label, [data-nofocus]')) focus(); }}>
         <div className="term-bar" aria-label="Status">
           <span>wholden.com <span className="term-bar-dim">· terminal + AI assistant</span></span>
           <span className="term-bar-ai" data-state={aiState}>{aiState === 'online' ? '● AI assistant online' : aiState === 'resting' ? '○ AI resting · commands work' : aiState === 'offline' ? '○ AI offline · commands work' : '○ AI'}</span>

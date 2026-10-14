@@ -1,5 +1,7 @@
 // Single source of truth for every way into the site: curl, the terminal's assistant, and MCP.
 // Adding a tool is a one-entry change here. Handlers are pure over the public content export.
+import { reflow } from '../shell/ansi.ts';
+import { bm25, chunksFor, findFile, findRepo, readLines, searchCode, sourceLabel, MAX_READ_LINES, type CodeIndex } from './code.ts';
 import { z } from 'zod';
 
 export type Link = { label: string; url: string };
@@ -29,7 +31,7 @@ export type Media = {
 export type PersonalEntry = { slug: string; title: string; tier: 'personal' | 'gated'; tags: string[]; body: string };
 
 export type UiAction =
-  | { component: 'ProfileHeader' | 'ProjectGrid' | 'Timeline' | 'SkillMap' | 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun'; props: object }
+  | { component: 'CodeBlock' | 'Sources' | 'MessageForm' | 'OnePager' | 'ProfileHeader' | 'ProjectGrid' | 'Timeline' | 'SkillMap' | 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun'; props: object }
   | { effect: 'theme'; theme: { name: string } }
   | { effect: 'confetti' | 'chicken' | 'matrix' | 'konami' };
 
@@ -37,6 +39,7 @@ export type Ctx = {
   content: Content; host: string; ansi: boolean; width?: number;
   personal?: PersonalEntry[]; // server-side only
   unlocked?: boolean; // server-verified unlock cookie; gated entries require it
+  loadCode?: () => Promise<CodeIndex>; // public-repo code index (Worker only)
 };
 export type Surface = 'chat' | 'cli' | 'ssh' | 'mcp';
 
@@ -249,27 +252,70 @@ tools.push(
   }),
   tool({
     name: 'search_corpus',
-    description: 'Keyword search over all public content (projects, bio). Use for specific questions about skills, tools, or details.',
+    description: "Ranked full-text search over everything public: William's resume, project write-ups, and the READMEs/docs in his project repos. Returns passages with their sources. Use it before saying you don't know, and for specific numbers or details.",
     input: z.object({ query: z.string().min(2).max(200) }),
     visibility: 'listed', tier: 'public', surfaces: ['chat', 'cli', 'mcp'],
     cli: { aliases: ['search', 'grep'], args: ['query'], usage: 'search <words>' },
     async handler({ query }, ctx) {
-      const q = new Set(words(query));
-      const docs = [
-        { slug: 'about', title: 'About William', text: ctx.content.site.bio + '\nAwards and honors: ' + (ctx.content.site.awards ?? []).join('; ') },
-        ...ctx.content.projects.map((p) => ({ slug: p.slug, title: p.title, text: [p.summary, p.role ?? '', p.stack.join(' '), plain(p.body)].join('\n') })),
-      ];
-      const scored = docs
-        .map((d) => {
-          const lines = d.text.split('\n').filter((l) => words(l).some((w) => q.has(w)));
-          const score = words(d.text + ' ' + d.title).filter((w) => q.has(w)).length;
-          return { ...d, score, lines };
-        })
-        .filter((d) => d.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 4);
-      if (!scored.length) return { text: `No matches for "${query}".` };
-      return { text: scored.map((d) => `[${d.slug}] ${d.title}\n${d.lines.slice(0, 4).map((l) => '  ' + l.trim()).join('\n')}`).join('\n\n') };
+      const idx = ctx.loadCode ? await ctx.loadCode().catch(() => []) : [];
+      const hits = bm25(chunksFor(ctx.content, idx), query, 6);
+      if (!hits.length) return { text: `No matches for "${query}".` };
+      return {
+        text: hits.map((h) => `[source: ${sourceLabel(h.source)}]\n${h.text.slice(0, 600)}`).join('\n\n'),
+        ui: { component: 'Sources', props: { refs: hits.slice(0, 4).map((h) => h.source) } },
+      };
+    },
+  }),
+  tool({
+    name: 'search_code',
+    description: "Search the source code of William's public project repos (Python, TypeScript, notebooks, configs). Returns file:line matches. Follow with read_code to show the code.",
+    input: z.object({ query: z.string().min(2).max(120), repo: z.string().regex(/^[\w.-]{1,80}$/).optional().describe('Repo name or project slug to limit the search') }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
+    async handler({ query, repo }, ctx) {
+      const idx = ctx.loadCode ? await ctx.loadCode().catch(() => []) : [];
+      if (!idx.length) return { text: 'The code index is unavailable right now.' };
+      const hits = searchCode(idx, query, repo);
+      if (!hits.length) return { text: `No code matches for "${query}"${repo ? ` in ${repo}` : ''}. Repos: ${idx.map((r) => r.name).join(', ')}.` };
+      return { text: hits.map((h) => `${h.repo.name}/${h.path}:${h.line}${h.repo.team ? ' (team repo)' : ''}: ${h.text}`).join('\n') };
+    },
+  }),
+  tool({
+    name: 'list_code',
+    description: "List William's indexed project repos, or the files in one repo (optionally under a directory).",
+    input: z.object({ repo: z.string().regex(/^[\w.-]{1,80}$/).optional(), dir: z.string().max(200).optional() }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
+    async handler({ repo, dir }, ctx) {
+      const idx = ctx.loadCode ? await ctx.loadCode().catch(() => []) : [];
+      if (!idx.length) return { text: 'The code index is unavailable right now.' };
+      if (!repo) return { text: idx.map((r) => `${r.name} (project: ${r.project}${r.team ? ', team repo: co-written with classmates' : ''}): ${r.files.length} files`).join('\n') };
+      const r = findRepo(idx, repo);
+      if (!r) return { text: `No repo "${repo}". Repos: ${idx.map((x) => x.name).join(', ')}.` };
+      const prefix = (dir ?? '').replace(/^\/+|\/+$/g, '');
+      const paths = r.files.map((f) => f.path).filter((p) => !prefix || p.startsWith(prefix + '/'));
+      return { text: `${r.name}${r.team ? ' (team repo)' : ''}, ${paths.length} files:\n${paths.slice(0, 150).join('\n')}` };
+    },
+  }),
+  tool({
+    name: 'read_code',
+    description: `Show lines of a file from one of William's repos inline, with line numbers and a GitHub link (max ${MAX_READ_LINES} lines). Use search_code or list_code first to find the path and lines.`,
+    input: z.object({
+      repo: z.string().regex(/^[\w.-]{1,80}$/),
+      path: z.string().min(1).max(300),
+      start: z.number().int().min(1).optional(),
+      end: z.number().int().min(1).optional(),
+    }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
+    async handler({ repo, path, start, end }, ctx) {
+      const idx = ctx.loadCode ? await ctx.loadCode().catch(() => []) : [];
+      const r = idx.length ? findRepo(idx, repo) : undefined;
+      if (!r) return { text: `No repo "${repo}".` };
+      const f = findFile(r, path);
+      if (!f) return { text: `No file "${path}" in ${r.name}. Use list_code or search_code to find it.` };
+      const out = readLines(f, start ?? 1, end);
+      return {
+        text: `${r.name}/${f.path} lines ${out.start}-${out.end} of ${out.total}${r.team ? ' (team repo: co-written with classmates; do not attribute it to William alone)' : ''}:\n` + out.lines.map((l, i) => `${out.start + i}: ${l}`).join('\n'),
+        ui: { component: 'CodeBlock', props: { repo: r.name, path: f.path, start: out.start, end: out.end } },
+      };
     },
   }),
   tool({
@@ -349,6 +395,108 @@ function evidenceFor(ctx: Ctx, req: string): { strength: 'strong' | 'partial' | 
   return { strength, evidence: top, skill: skillHit };
 }
 const STOP = new Set(['experience', 'with', 'and', 'the', 'for', 'years', 'year', 'strong', 'knowledge', 'ability', 'skills', 'using', 'work', 'working', 'plus', 'preferred', 'required', 'familiarity', 'understanding', 'systems', 'system', 'tools', 'tool', 'frameworks', 'framework', 'technologies', 'environment', 'environments', 'production', 'proficiency', 'proficient', 'in', 'of', 'to', 'or', 'an', 'a', 'on', 'build', 'building', 'develop', 'developing', 'excellent', 'solid', 'hands-on']);
+
+// ---------- tailored one-pager ----------
+// Built only from site content: the model picks the role label, requirements, and projects; every
+// line in the document is copied verbatim from William's resume or project write-ups.
+export type OnePagerInput = { role: string; requirements: string[]; projects: string[] };
+export type OnePager = {
+  role: string; name: string; headline: string; contact: string[];
+  experience: { title: string; org: string; period: string; summary: string }[];
+  projects: { slug: string; title: string; period: string; summary: string; bullets: string[] }[];
+  skills: string[]; education: string[]; awards: string[];
+};
+const bulletLines = (md: string) => reflow(md).split('\n').filter((l) => /^\s*[-*]\s+/.test(l)).map((l) => plain(l.replace(/^\s*[-*]\s+/, '')).trim()).filter((l) => l.length > 20);
+export function composeOnePager(content: Content, input: OnePagerInput): OnePager {
+  const s = content.site;
+  const terms = new Set(input.requirements.flatMap((r) => words(r)).filter((w) => !STOP.has(w)).flatMap((w) => [w, ...(SYNONYMS[w] ?? [])]));
+  const score = (text: string) => words(text).filter((w) => terms.has(w)).length;
+  const projects = input.projects
+    .map((slug) => content.projects.find((p) => p.slug === slug))
+    .filter((p): p is Project => Boolean(p) && p!.kind !== 'professional')
+    .filter((p, i, a) => a.indexOf(p) === i)
+    .slice(0, 4)
+    .map((p) => ({
+      slug: p.slug, title: p.title, period: p.period, summary: p.summary,
+      bullets: bulletLines(p.body).map((l, i) => ({ l, i, n: score(l) })).sort((a, b) => b.n - a.n || a.i - b.i).slice(0, 3).sort((a, b) => a.i - b.i).map((x) => x.l),
+    }));
+  const allSkills = (s.skills ?? []).flatMap((k) => k.items);
+  const skills = allSkills.map((it, i) => ({ it, i, n: score(it) + (terms.has(it.toLowerCase()) ? 2 : 0) })).sort((a, b) => b.n - a.n || a.i - b.i).slice(0, 14).map((x) => x.it);
+  return {
+    role: input.role.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 80),
+    name: s.name, headline: `${s.role} · ${s.location}`,
+    contact: s.links.map((l) => l.url.replace(/^mailto:/, '').replace(/^https?:\/\/(www\.)?/, '')),
+    experience: (s.experience ?? []).filter((e) => e.start && e.start >= '2022').slice(0, 3).map((e) => {
+      const proj = e.project ? content.projects.find((p) => p.slug === e.project) : undefined;
+      return { title: e.title, org: e.org, period: e.period ?? '', summary: e.summary ?? proj?.summary ?? '' };
+    }),
+    projects, skills,
+    education: (s.education ?? []).map((e) => `${e.degree}, ${e.school}, ${e.date}${e.detail ? ` (${e.detail})` : ''}`),
+    awards: (s.awards ?? []).slice(0, 3),
+  };
+}
+// Printable HTML for the one-pager; every value is escaped (the role label comes from the model).
+const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
+export function onePagerHtml(o: OnePager) {
+  const sec = (t: string, body: string) => `<h2>${esc(t)}</h2>${body}`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(o.name)}${o.role ? ' · ' + esc(o.role) : ''}</title><style>
+body{font:11pt/1.45 ui-sans-serif,system-ui,sans-serif;color:#000;max-width:7.2in;margin:.5in auto;padding:0 .2in}
+h1{font-size:20pt;margin:0}h2{font-size:10pt;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #000;margin:14pt 0 5pt}
+p{margin:2pt 0 6pt}ul{margin:2pt 0 6pt;padding-left:14pt}.m{color:#444}.r{font-style:italic;margin-top:6pt}
+@page{margin:.5in}@media print{body{margin:0 auto}}</style></head><body>
+<h1>${esc(o.name)}</h1><div>${esc(o.headline)}</div><div class="m">${o.contact.map(esc).join(' · ')}</div>
+${o.role ? `<div class="r">Relevant experience for: ${esc(o.role)}</div>` : ''}
+${sec('Experience', o.experience.map((e) => `<p><b>${esc(e.title)}</b>, ${esc(e.org)} <span class="m">${esc(e.period)}</span><br>${esc(e.summary)}</p>`).join(''))}
+${sec('Selected projects', o.projects.map((p) => `<p><b>${esc(p.title)}</b> <span class="m">${esc(p.period)}</span><br>${esc(p.summary)}</p>${p.bullets.length ? `<ul>${p.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}`).join(''))}
+${sec('Skills', `<p>${o.skills.map(esc).join(', ')}</p>`)}
+${sec('Education', `<ul>${o.education.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>`)}
+${o.awards.length ? sec('Awards', `<ul>${o.awards.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>`) : ''}
+</body></html>`;
+}
+
+export function onePagerMarkdown(o: OnePager): string {
+  return [
+    `# ${o.name}`, `${o.headline}  `, o.contact.join(' · '), '', o.role ? `*Relevant experience for: ${o.role}*` : '', '',
+    '## Experience', ...o.experience.flatMap((e) => [`**${e.title}**, ${e.org} (${e.period})  `, e.summary, '']),
+    '## Selected projects', ...o.projects.flatMap((p) => [`**${p.title}** (${p.period})  `, p.summary, ...p.bullets.map((b) => `- ${b}`), '']),
+    '## Skills', o.skills.join(', '), '',
+    '## Education', ...o.education.map((e) => `- ${e}`), '',
+    ...(o.awards.length ? ['## Awards', ...o.awards.map((a) => `- ${a}`)] : []),
+  ].join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
+}
+
+tools.push(
+  tool({
+    name: 'tailor_one_pager',
+    description: "Build a one-page summary of William tailored to a job: shows a preview the visitor can download as Markdown or save as PDF. Every line is copied from his resume and project write-ups; you choose only the role label, the job's key requirements, and which projects to feature. Best after a fit report.",
+    input: z.object({
+      role: z.string().min(2).max(80).describe('Job title / team, e.g. "ML Engineer, Perception"'),
+      requirements: z.array(z.string().min(2).max(120)).min(1).max(10),
+      projects: z.array(z.string().regex(/^[a-z0-9-]{1,64}$/)).min(1).max(4).describe('Project slugs to feature, most relevant first'),
+    }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat'],
+    async handler(input, ctx) {
+      const o = composeOnePager(ctx.content, input);
+      if (!o.projects.length) return { text: 'None of those project slugs exist (professional work is included automatically). Use list_projects.' };
+      return {
+        text: `Showed a one-pager preview for "${o.role}" featuring ${o.projects.map((p) => p.slug).join(', ')}; the visitor can download it. Don't repeat its contents.`,
+        ui: { component: 'OnePager', props: { role: o.role, requirements: input.requirements, projects: o.projects.map((p) => p.slug) } },
+      };
+    },
+  }),
+  tool({
+    name: 'leave_message',
+    description: "Show a contact form so the visitor can send William a message (emailed to him). You may pre-fill name, email, and note from what the visitor said. Nothing is sent until the visitor reviews it and presses Send.",
+    input: z.object({ name: z.string().max(80).optional(), email: z.string().max(120).optional(), note: z.string().max(1200).optional() }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat'],
+    async handler({ name, email, note }) {
+      return {
+        text: 'Showed a message form. Tell the visitor to review it and press Send; nothing has been sent yet.',
+        ui: { component: 'MessageForm', props: { name: name ?? '', email: email ?? '', note: note ?? '' } },
+      };
+    },
+  }),
+);
 
 tools.push(tool({
   name: 'match_requirements',
