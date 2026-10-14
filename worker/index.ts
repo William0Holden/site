@@ -1,6 +1,7 @@
 import { renderCurl, isTerminalClient } from './curl';
-import { chatStatus, handleChat, loadContent, powChallenge } from './chat';
+import { chatStatus, handleChat, loadCode, loadContent, powChallenge } from './chat';
 import { handleMcp } from './mcp';
+import { handleMessage } from './message';
 import { cookie, signToken, verifyUnlockCode } from './auth';
 import { LIMITS } from './config';
 import { httpsRedirect, movedPath, withSecurityHeaders } from './edge';
@@ -19,6 +20,7 @@ export interface Env {
   DAILY_LLM_BUDGET_USD?: string;
   MONTHLY_LLM_BUDGET_USD?: string;
   LOCAL_DEV?: string;
+  EMAIL?: SendEmail; // Cloudflare Email Routing, locked to William's verified address
 }
 
 export default {
@@ -43,7 +45,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext, url: URL
   if (url.pathname === '/api/chat') return handleChat(request, env, ctx);
   if (url.pathname === '/api/chat/status') return chatStatus(env);
   if (url.pathname === '/api/chat/challenge') return powChallenge(env);
-  if (url.pathname === '/mcp') return handleMcp(request, await loadContent(env, url), url.host);
+  if (url.pathname === '/api/message') return handleMessage(request, env);
+  if (url.pathname === '/mcp') return handleMcp(request, await loadContent(env, url), url.host, () => loadCode(env, url));
   // The unlock code rides in the URL fragment (never sent to the server or logged); the page
   // posts it to /api/unlock, which sets the friends cookie.
   if (url.pathname === '/unlock') {
@@ -61,7 +64,11 @@ fetch('/api/unlock', { method: 'POST', headers: { 'content-type': 'application/j
     const token = await signToken(env.UNLOCK_SIGNING_SECRET!, 'unlock', LIMITS.unlockTtlSec);
     return Response.json({ ok: true }, { headers: { 'set-cookie': cookie('unlock', token, LIMITS.unlockTtlSec), 'cache-control': 'no-store' } });
   }
-  if (url.pathname.startsWith('/api/') && !['/api/content.json', '/api/registry.json'].includes(url.pathname)) {
+  // Static API files: content, the tool registry, and the code index the browser renders code blocks
+  // from (index.json + one .txt per file). The combined all.json is only for the Worker's own tools.
+  const staticApi = ['/api/content.json', '/api/registry.json'].includes(url.pathname)
+    || (url.pathname.startsWith('/api/code/') && url.pathname !== '/api/code/all.json');
+  if (url.pathname.startsWith('/api/') && !staticApi) {
     return Response.json({ error: 'not_found' }, { status: 404 });
   }
 

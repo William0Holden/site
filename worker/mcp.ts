@@ -1,6 +1,7 @@
 // Remote MCP server (streamable HTTP, stateless JSON responses) exposing public-tier tools only,
 // so visitors' own AI clients can query William's work at no LLM cost to him.
 import { z } from 'zod';
+import type { CodeIndex } from '../tools/code';
 import { tools, type Content } from '../tools/registry';
 
 const PROTOCOL = '2025-06-18';
@@ -10,7 +11,7 @@ type Rpc = { jsonrpc: '2.0'; id?: string | number | null; method: string; params
 const ok = (id: Rpc['id'], result: unknown) => ({ jsonrpc: '2.0', id, result });
 const fail = (id: Rpc['id'], code: number, message: string) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
 
-async function dispatch(msg: Rpc, content: Content, host: string) {
+async function dispatch(msg: Rpc, content: Content, host: string, loadCode?: () => Promise<CodeIndex>) {
   if (!msg || typeof msg !== 'object' || typeof msg.method !== 'string') return fail(null, -32600, 'Invalid Request');
   if (msg.id === undefined || msg.id === null) return null; // notifications get no response
   switch (msg.method) {
@@ -35,7 +36,7 @@ async function dispatch(msg: Rpc, content: Content, host: string) {
       if (!t) return fail(msg.id, -32602, `Unknown tool: ${msg.params?.name}`);
       const parsed = t.input.safeParse(msg.params?.arguments ?? {});
       if (!parsed.success) return fail(msg.id, -32602, 'Invalid arguments');
-      const out = await t.handler(parsed.data, { content, host, ansi: false });
+      const out = await t.handler(parsed.data, { content, host, ansi: false, loadCode });
       return ok(msg.id, { content: [{ type: 'text', text: out.text.trim() }], isError: false });
     }
     default:
@@ -43,14 +44,14 @@ async function dispatch(msg: Rpc, content: Content, host: string) {
   }
 }
 
-export async function handleMcp(req: Request, content: Content, host: string): Promise<Response> {
+export async function handleMcp(req: Request, content: Content, host: string, loadCode?: () => Promise<CodeIndex>): Promise<Response> {
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type, mcp-protocol-version, mcp-session-id', 'access-control-allow-methods': 'POST, OPTIONS' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   if (req.method !== 'POST') return new Response('MCP endpoint: POST JSON-RPC here.', { status: 405, headers: { allow: 'POST', ...cors } });
   let body: Rpc | Rpc[];
   try { body = await req.json(); } catch { return Response.json(fail(null, -32700, 'Parse error'), { status: 400, headers: cors }); }
   const batch = Array.isArray(body) ? body.slice(0, 10) : [body];
-  const results = (await Promise.all(batch.map((m) => dispatch(m, content, host)))).filter(Boolean);
+  const results = (await Promise.all(batch.map((m) => dispatch(m, content, host, loadCode)))).filter(Boolean);
   if (!results.length) return new Response(null, { status: 202, headers: cors });
   return Response.json(Array.isArray(body) ? results : results[0], { headers: cors });
 }
