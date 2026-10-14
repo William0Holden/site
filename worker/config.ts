@@ -22,6 +22,12 @@ export const LIMITS = {
   sessionsPerIpHour: 6,
   sessionTtlSec: 24 * 3600,
   unlockTtlSec: 90 * 24 * 3600,
+  // "Leave William a message": visitor-reviewed form, emailed through Cloudflare Email Routing.
+  messagesPerVisitorDay: 3,
+  messagesGlobalDay: 25,
+  maxMessageBodyBytes: 4_000,
 };
+export const MESSAGE_TO = 'williamhold02@gmail.com';
+export const MESSAGE_FROM = 'site@wholden.com';
 export const DEFAULT_MODEL = 'anthropic/claude-haiku-5.5';
 export const DEFAULT_FALLBACK = 'qwen/qwen3.7-flash';

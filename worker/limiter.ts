@@ -17,5 +17,7 @@ export class Limiter extends DurableObject<unknown> {
   }
   adjust(deltaUsd: number) { return this.core.adjust(deltaUsd); }
   claimMint(nonce: string, visitor: string, maxPerHour: number) { return this.core.claimMint(nonce, visitor, maxPerHour); }
+  claimMessage(visitors: string[], perVisitorDay: number, globalDay: number) { return this.core.claimMessage(visitors, perVisitorDay, globalDay); }
+  refundMessage(visitors: string[]) { return this.core.refundMessage(visitors); }
   status(budgetUsd: number, monthlyBudgetUsd?: number) { return this.core.status(budgetUsd, monthlyBudgetUsd); }
 }
