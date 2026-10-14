@@ -147,7 +147,7 @@ function findProject(ct: Content, q: string): Project | undefined {
   return ct.projects.find((p) => p.slug === s) ?? ct.projects.find((p) => p.title.toLowerCase().includes(s));
 }
 
-function skillUses(ct: Content, skill: string): Project[] {
+export function skillUses(ct: Content, skill: string): Project[] {
   const k = skill.toLowerCase().replace(/\s+/g, ' ');
   const alias: Record<string, string[]> = { yolo: ['yolov11-pose', 'yolo'], 'llm orchestration': ['llms', 'llm'], rag: ['rag', 'retrieval'], 'agentic workflows': ['agentic'], javascript: ['javascript', 'node.js', 'react'], typescript: ['typescript'], docker: ['docker'], aws: ['aws'] };
   const keys = alias[k] ?? [k];
@@ -157,8 +157,8 @@ function skillUses(ct: Content, skill: string): Project[] {
   });
 }
 
-type TimelineItem = { start: string; end?: string; label: string; detail: string; kind: string; slug?: string };
-function timelineItems(ct: Content): TimelineItem[] {
+export type TimelineItem = { start: string; end?: string; label: string; detail: string; kind: string; slug?: string };
+export function timelineItems(ct: Content): TimelineItem[] {
   const items: TimelineItem[] = [];
   for (const e of ct.site.experience ?? []) if (e.start) items.push({ start: e.start, end: e.end, label: `${e.title}, ${e.org}`, detail: e.period, kind: 'work', slug: e.project });
   for (const e of ct.site.education ?? []) {
@@ -194,7 +194,10 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
         if (f.has('m')) { io.out(resumeMd(ct)); return 0; }
         if (f.has('p')) { io.out(`${c('resume.pdf', 'magenta')} ${c('(one page, phone number removed)', 'gray')}\n`); show(io, { component: 'ResumeViewer', props: {} }); return 0; }
         const s = ct.site, w = W(io), out: string[] = [];
-        out.push('', wrap(`${c(s.name, 'bold')} ${c('· ' + s.role, 'yellow')} ${c('· ' + s.location, 'gray')}`, w), '');
+        show(io, { component: 'ProfileHeader', props: {} });
+        // In the browser the profile header above already shows the name.
+        if (!io.isTTY) out.push('', wrap(`${c(s.name, 'bold')} ${c('· ' + s.role, 'yellow')} ${c('· ' + s.location, 'gray')}`, w), '');
+        else out.push('');
         out.push(rule(io, 'experience'));
         for (const e of s.experience ?? []) {
           const proj = e.project ? ct.projects.find((p) => p.slug === e.project) : undefined;
@@ -236,6 +239,11 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
         const q = args.join(' ').toLowerCase();
         const list = ct.projects.filter((p) => !q || [p.title, p.summary, p.role ?? '', p.stack.join(' '), p.kind, p.body].join(' ').toLowerCase().includes(q));
         if (!list.length) { io.err(`projects: nothing matches "${q}"\n`); return 1; }
+        if (io.isTTY) {
+          show(io, { component: 'ProjectGrid', props: { slugs: list.map((p) => p.slug) } });
+          io.out(c(`${list.length} project${list.length > 1 ? 's' : ''} · click one, or open <name> · files live in ~william/projects/\n`, 'gray'));
+          return 0;
+        }
         const sw = Math.max(...list.map((p) => p.slug.length));
         const rows = list.map((p) => `  ${pad(projLink(io, p), sw)}  ${p.title} ${c(`(${p.period})`, 'gray')}\n  ${' '.repeat(sw)}  ${c(p.stack.slice(0, 5).join(' · '), 'gray')}`);
         io.out(`\n${rows.join('\n')}\n\n${c(`open <name> for details · ${list.length} project${list.length > 1 ? 's' : ''} · files live in ~william/projects/`, 'gray')}\n`);
@@ -318,8 +326,10 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
           for (const p of uses) io.out(`  ${c('├─', 'gray')} ${projLink(io, p)} ${c(p.title, 'gray')}\n`);
           if (!uses.length) io.out(c('  listed on the resume; no public project shows it yet\n', 'gray'));
           io.out('\n');
+          if (uses.length) show(io, { component: 'ProjectGrid', props: { slugs: uses.map((p) => p.slug) } });
           return 0;
         }
+        if (io.isTTY) { show(io, { component: 'SkillMap', props: { area: area?.area ?? '' } }); return 0; }
         const out: string[] = [''];
         for (const a of area ? [area] : areas) {
           out.push(c(a.area, 'bold', 'cyan'));
@@ -341,6 +351,7 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
     timeline: {
       readonly: true, help: 'work, school, research, and projects on one timeline',
       run: (_a, io) => {
+        if (io.isTTY) { show(io, { component: 'Timeline', props: {} }); return 0; }
         const items = timelineItems(ct);
         const glyph: Record<string, string> = { work: c('●', 'yellow'), edu: c('◆', 'cyan'), project: c('○', 'green'), lab: c('▣', 'magenta'), pub: c('★', 'red') };
         let year = '';
@@ -360,9 +371,9 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
     contact: {
       readonly: true, help: 'how to reach William',
       run: (_a, io) => {
+        if (io.isTTY) { show(io, { component: 'ProfileHeader', props: {} }); return 0; }
         const rows = ct.site.links.map((l) => `  ${c(l.label.padEnd(9), 'gray')}${link(c(l.url.replace('mailto:', ''), 'underline'), l.url)}`);
         io.out(`\n${rows.join('\n')}\n\n`);
-        show(io, { component: 'ContactForm', props: {} });
         return 0;
       },
     },
@@ -371,6 +382,7 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
       readonly: true, hidden: true,
       run: async (args, io) => {
         if (args[0] && !/william|wholden|holden/i.test(args[0])) { io.err(`whois: no match for "${args[0]}"\n`); return 1; }
+        show(io, { component: 'ProfileHeader', props: {} });
         io.out((await viaTool('about', {}, io)).text);
         return 0;
       },

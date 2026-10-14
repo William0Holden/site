@@ -8,7 +8,7 @@ role: Graduate coursework (PHIL 8400, University of Georgia)
 stack: [memoQ, MATEO, COMET, BLEU, chrF2, TER, Ollama]
 links:
   - { label: "Code & results", url: "https://github.com/William0Holden/llm-translation-eval" }
-media: []
+media: [mt-comet-scores]
 featured: false
 order: 7
 theme: { accent: "#5eead4", accent2: "#f0abfc", bg: "#08110f", mood: "bilingual, ink and paper" }

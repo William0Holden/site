@@ -127,5 +127,49 @@
     "projects": [
       "homelab"
     ]
+  },
+  {
+    "id": "decktection-detections",
+    "type": "image",
+    "src": "src/assets/decktection/detections.jpg",
+    "title": "Card detections on a table",
+    "alt": "Magic: The Gathering cards spread on a wooden table with a player's hands at right; green boxes labeled 'item' with confidence scores from 0.35 to 0.97 surround the detected cards.",
+    "caption": "Detector output on a cluttered real-world scene, with a confidence score on each detected card.",
+    "projects": [
+      "decktection"
+    ]
+  },
+  {
+    "id": "decktection-segmented-crop",
+    "type": "image",
+    "src": "src/assets/decktection/segmented-crop.jpg",
+    "title": "Segmented card crop",
+    "alt": "A single tilted Magic card cut out from the scene on a black background, still at its original perspective angle.",
+    "caption": "One detected card cut out of the scene, still at its original angle (detection confidence 0.97).",
+    "projects": [
+      "decktection"
+    ]
+  },
+  {
+    "id": "decktection-normalized-card",
+    "type": "image",
+    "src": "src/assets/decktection/normalized-card.jpg",
+    "title": "Normalized card",
+    "alt": "The same card straightened to a flat, front-facing rectangle, ready for classification.",
+    "caption": "The same card straightened to a flat, front-facing view, ready for identification.",
+    "projects": [
+      "decktection"
+    ]
+  },
+  {
+    "id": "mt-comet-scores",
+    "type": "image",
+    "src": "src/assets/mt-evaluation/comet-scores.png",
+    "title": "COMET scores by system",
+    "alt": "Grayscale horizontal bar chart of COMET scores for 15 Korean-to-English translation systems. DeepL, the baseline, is highest at 86.46, followed by Claude 86.14, DeepSeek 86.10 and GPT-5 85.89; Llama 3.2 1B is lowest at 72.06. The x-axis starts at 70.",
+    "caption": "COMET scores for 15 Korean→English systems against the published English translation (axis starts at 70).",
+    "projects": [
+      "mt-evaluation"
+    ]
   }
 ]
