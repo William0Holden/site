@@ -22,9 +22,11 @@ const personal: PersonalEntry[] = [
 type Case = { q: string; expect?: string[]; forbidText?: RegExp[]; expectText?: RegExp; fit?: boolean };
 const cases: Case[] = [
   { q: 'Show me DeckTection', expect: ['show_project'] },
-  { q: 'What projects has he worked on?', expect: ['list_projects'] },
+  { q: 'What projects has he worked on?', expect: ['list_projects', 'run_shell'] }, // run_shell `projects` renders the same grid
   { q: 'Tell me about his thesis research', expect: ['show_project', 'show_media', 'search_corpus'] },
   { q: 'Can I see the figures from his chicken research?', expect: ['show_media'] },
+  { q: 'What does William look like?', expect: ['show_media'] },
+  { q: 'How well did the card detector work? Show me.', expect: ['show_media', 'show_project'] },
   { q: 'Can I see his resume?', expect: ['get_resume'] },
   { q: 'How can I contact William?', expect: ['contact'] },
   { q: 'What has he pushed to GitHub lately?', expect: ['github_activity'] },
