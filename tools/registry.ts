@@ -29,7 +29,7 @@ export type Media = {
 export type PersonalEntry = { slug: string; title: string; tier: 'personal' | 'gated'; tags: string[]; body: string };
 
 export type UiAction =
-  | { component: 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun'; props: object }
+  | { component: 'ProfileHeader' | 'ProjectGrid' | 'Timeline' | 'SkillMap' | 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun'; props: object }
   | { effect: 'theme'; theme: { name: string } }
   | { effect: 'confetti' | 'chicken' | 'matrix' | 'konami' };
 
@@ -88,7 +88,7 @@ export const tools: Tool[] = [
     async handler(_i, ctx) {
       const p = paint(ctx), s = ctx.content.site;
       const links = s.links.map((l) => `  ${p(l.label.padEnd(9), 'gray')}${l.url.replace('mailto:', '')}`).join('\n');
-      return { text: `\n  ${p(s.name, 'bold', 'blue')}\n  ${p(s.role, 'pink')} ${p('· ' + s.location, 'gray')}\n\n${wrap(s.tagline, W(ctx))}\n\n${links}\n` };
+      return { text: `\n  ${p(s.name, 'bold', 'blue')}\n  ${p(s.role, 'pink')} ${p('· ' + s.location, 'gray')}\n\n${wrap(s.tagline, W(ctx))}\n\n${links}\n`, ui: { component: 'ProfileHeader', props: {} } };
     },
   }),
   tool({
@@ -101,7 +101,7 @@ export const tools: Tool[] = [
       const p = paint(ctx), ps = ctx.content.projects;
       const w = Math.max(...ps.map((x) => x.slug.length));
       const rows = ps.map((x) => `  ${p(x.slug.padEnd(w), 'blue')}  ${x.title} ${p(`(${x.period})`, 'gray')}`).join('\n');
-      return { text: `\n${p('projects', 'bold')}\n\n${rows}\n\n  ${p(ctx.ansi ? 'curl ' + ctx.host + '/p/<slug>  ·  or open ' + ctx.host + ' in a browser' : 'Use show_project with a slug for details.', 'dim')}\n` };
+      return { text: `\n${p('projects', 'bold')}\n\n${rows}\n\n  ${p(ctx.ansi ? 'curl ' + ctx.host + '/p/<slug>  ·  or open ' + ctx.host + ' in a browser' : 'Use show_project with a slug for details.', 'dim')}\n`, ui: { component: 'ProjectGrid', props: { slugs: ps.map((x) => x.slug) } } };
     },
   }),
   tool({

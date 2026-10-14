@@ -8,7 +8,7 @@ role: Computer Vision course project (CSCI 8820), with Alex Darwiche
 stack: [PyTorch, YOLOv12, SAM2, ResNet-18, OpenCV]
 links:
   - { label: "Code (team repo)", url: "https://github.com/DeckTection/DeckTection" }
-media: []
+media: [decktection-detections, decktection-segmented-crop, decktection-normalized-card]
 featured: true
 order: 3
 theme: { accent: "#ff6b9a", accent2: "#ffd166", bg: "#140a12", mood: "playful, holographic foil" }
@@ -18,5 +18,5 @@ theme: { accent: "#ff6b9a", accent2: "#ffd166", bg: "#140a12", mood: "playful, h
 - Fine-tuned YOLOv12 to **99.49% mAP50** for card detection.
 - Trained a ResNet-18 Siamese network to **95% one-shot accuracy** across 4,000 cards.
 
-<!-- TODO(william): images / demo clip (none found in Drive, Nextcloud, or GitHub). Period
+<!-- Images: from the team repo (card_detection/ and card_preprocessing/ in DeckTection/DeckTection). TODO(william): demo clip? Period
 "Spring 2025" comes from the CSCI 8820 proposal dates; confirm. -->

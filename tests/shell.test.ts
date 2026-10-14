@@ -174,3 +174,23 @@ test('welcome screen offers plain-English options whose links are all safe', () 
   assert.ok(targets.length >= 6);
   for (const t of targets) assert.ok(SUGGESTED_QUESTIONS.includes(t) || sh.commands[t]?.readonly, t);
 });
+
+test('in the browser, overview commands show visual blocks; piped output stays text', async () => {
+  const { run, ui } = harness();
+  const comp = () => (ui.at(-1) as { component?: string; props?: { slugs?: string[] } });
+  await run('projects', true); assert.equal(comp().component, 'ProjectGrid');
+  await run('timeline', true); assert.equal(comp().component, 'Timeline');
+  await run('skills', true); assert.equal(comp().component, 'SkillMap');
+  await run('contact', true); assert.equal(comp().component, 'ProfileHeader');
+  await run('skills pytorch', true);
+  assert.equal(comp().component, 'ProjectGrid');
+  assert.ok(comp().props?.slugs?.includes('broiler-behavior'));
+  const n = ui.length;
+  assert.match((await run('projects')).out, /decktection/);
+  assert.match((await run('timeline')).out, /2025/);
+  assert.equal(ui.length, n);
+});
+
+test('every project cover points at media that exists', () => {
+  for (const p of content.projects) for (const id of p.media) assert.ok(content.media.some((m) => m.id === id), `${p.slug}: ${id}`);
+});
