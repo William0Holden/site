@@ -47,7 +47,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext, url: URL
   // The unlock code rides in the URL fragment (never sent to the server or logged); the page
   // posts it to /api/unlock, which sets the friends cookie.
   if (url.pathname === '/unlock') {
-    return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Unlocking…</title><body style="background:#0a0c12;color:#e8ebf2;font-family:system-ui;padding:2rem">Unlocking…<script>
+    return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Unlocking…</title><body style="background:#000;color:#fff;font-family:system-ui;padding:2rem">Unlocking…<script>
 const code = new URLSearchParams(location.hash.slice(1)).get('code');
 history.replaceState(null, '', '/unlock');
 fetch('/api/unlock', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) })
