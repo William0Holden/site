@@ -63,4 +63,4 @@ export async function runReadonly(content: Content, line: string, opts: { cols?:
 }
 
 export { Shell, type Host, type IO } from './sh.ts';
-export { MOTD } from './portfolio.ts';
+export { MOTD, SUGGESTED_QUESTIONS } from './portfolio.ts';

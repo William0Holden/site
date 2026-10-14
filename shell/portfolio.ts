@@ -39,7 +39,24 @@ const bibtex = (ct: Content) => (ct.site.publications ?? []).map((p) => {
   return `@article{holden${m[5]},\n  author  = {${m[1].replace(/\.,? $/, '.').replace(/, ([A-Z])/g, ' and $1')}},\n  title   = {${m[2]}},\n  journal = {${m[3]}},\n  volume  = {${m[4]}},\n  pages   = {${m[6]}},\n  year    = {${m[5]}},\n  doi     = {${p.doi ?? ''}}\n}`;
 }).join('\n\n') + '\n';
 
-export const MOTD = `hello, i'm william.\n\ntry: ${cmdLink(c('resume', 'bold', 'cyan'), 'resume')}\n`;
+// Sample questions on the welcome screen. Clicking one asks the assistant, so the terminal allows
+// exactly these strings as links even though `ask` isn't a read-only command.
+export const SUGGESTED_QUESTIONS = ['ask what was his thesis about?', 'ask what does he build at work?'];
+const chip = (cmd: string) => cmdLink(c(`[ ${cmd} ]`, 'bold'), cmd);
+export const MOTD = [
+  "hello, i'm william. AI engineer in Atlanta.",
+  '',
+  'this is a terminal with an AI assistant built in.',
+  '',
+  `  ${chip('resume')}  ${chip('projects')}  ${chip('contact')}`,
+  '',
+  '  or ask the AI anything, in plain English:',
+  ...SUGGESTED_QUESTIONS.map((q) => `  › ${cmdLink(q.slice(4), q)}`),
+  '',
+  c('  click anything underlined, or type below.', 'gray'),
+  c(`  it's a real shell, too: ${cmdLink('help')}, ls, man, boot.`, 'gray'),
+  '',
+].join('\n');
 
 // Build the read-only base filesystem from the content export.
 export function buildTree(ct: Content, commandNames: string[], now: number): DirNode {
@@ -177,24 +194,24 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
         if (f.has('m')) { io.out(resumeMd(ct)); return 0; }
         if (f.has('p')) { io.out(`${c('resume.pdf', 'magenta')} ${c('(one page, phone number removed)', 'gray')}\n`); show(io, { component: 'ResumeViewer', props: {} }); return 0; }
         const s = ct.site, w = W(io), out: string[] = [];
-        out.push('', `${c(s.name, 'bold')}  ${c(s.role, 'yellow')} ${c('· ' + s.location, 'gray')}`, '');
+        out.push('', wrap(`${c(s.name, 'bold')} ${c('· ' + s.role, 'yellow')} ${c('· ' + s.location, 'gray')}`, w), '');
         out.push(rule(io, 'experience'));
         for (const e of s.experience ?? []) {
           const proj = e.project ? ct.projects.find((p) => p.slug === e.project) : undefined;
-          out.push('', `${c(e.title, 'bold')} ${c('@', 'gray')} ${e.org}`);
+          out.push('', wrap(`${c(e.title, 'bold')} ${c('@', 'gray')} ${e.org}`, w));
           const when = [e.period, e.place].filter(Boolean).join(' · ');
-          if (when) out.push(c(when, 'gray'));
+          if (when) out.push(wrap(c(when, 'gray'), w));
           const text = e.summary ?? proj?.summary;
           if (text) out.push(wrap(text, w, '  '));
           if (proj && io.isTTY) out.push('  ' + c('→ ', 'gray') + cmdLink(c(`open ${proj.slug}`, 'cyan'), `open ${proj.slug}`));
         }
         if (!f.has('s')) {
           out.push('', rule(io, 'education'));
-          for (const e of s.education ?? []) out.push(`${c(e.degree, 'bold')}, ${e.school} ${c(e.date, 'gray')}${e.detail ? '\n' + c('  ' + e.detail, 'gray') : ''}`);
+          for (const e of s.education ?? []) out.push(wrap(`${c(e.degree, 'bold')}, ${e.school} ${c(e.date, 'gray')}`, w) + (e.detail ? '\n' + c(wrap(e.detail, w, '  '), 'gray') : ''));
           out.push('', rule(io, 'publication'));
           for (const p of s.publications ?? []) out.push(wrap(p.cite, w, '  ') + (p.doi ? '\n  ' + link(c(`doi:${p.doi}`, 'underline'), `https://doi.org/${p.doi}`) : ''));
           out.push('', rule(io, 'awards'));
-          for (const a of s.awards ?? []) out.push(`  ${c('★', 'yellow')} ${a}`);
+          for (const a of s.awards ?? []) out.push(`  ${c('★', 'yellow')} ` + wrap(a, w, '    ').slice(4));
           out.push('', rule(io, 'skills'));
           const aw = Math.max(...(s.skills ?? []).map((k) => k.area.length));
           for (const k of s.skills ?? []) {
@@ -202,7 +219,9 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
             body.forEach((l, i) => out.push(`  ${i === 0 ? c(pad(k.area, aw), 'bold') : ' '.repeat(aw)}  ${l}`));
           }
           out.push('', rule(io, 'projects'));
-          for (const p of ct.projects.filter((x) => x.kind !== 'professional' && x.kind !== 'research')) out.push(`  ${pad(projLink(io, p), 22)} ${p.title} ${c(p.period, 'gray')}`);
+          for (const p of ct.projects.filter((x) => x.kind !== 'professional' && x.kind !== 'research')) {
+            out.push(w < 64 ? `  ${projLink(io, p)}\n    ${p.title} ${c(p.period, 'gray')}` : `  ${pad(projLink(io, p), 22)} ${p.title} ${c(p.period, 'gray')}`);
+          }
         }
         out.push('', c(`more: ${io.isTTY ? cmdLink('resume --pdf') + ' · ' + cmdLink('timeline') + ' · ' + cmdLink('skills') + ' · ' + cmdLink('contact') : 'resume --pdf · timeline · skills · contact'}`, 'gray'), '');
         io.out(out.join('\n') + '\n');
@@ -522,9 +541,9 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
     },
     cmatrix: { readonly: true, hidden: true, run: (_a, io) => { io.sh.host.ui?.({ effect: 'matrix' }); return 0; } },
     theme: {
-      readonly: true, help: 'change colours: default, matrix, sunset, ocean, amber, paper',
+      readonly: true, help: 'switch between dark (default) and light',
       run: (args, io) => {
-        const names = ['default', 'matrix', 'sunset', 'ocean', 'amber', 'paper'];
+        const names = ['default', 'light'];
         const n = args[0];
         if (!n || !names.includes(n)) { io.out(`usage: theme <${names.join('|')}>\n`); return n ? 1 : 0; }
         io.sh.host.ui?.({ effect: 'theme', theme: { name: n } });

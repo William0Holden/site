@@ -268,11 +268,11 @@ tools.push(
   }),
   tool({
     name: 'theme',
-    description: 'Change the terminal colour theme: default, matrix, sunset, ocean, amber, or paper (light).',
-    input: z.object({ name: z.enum(['default', 'matrix', 'sunset', 'ocean', 'amber', 'paper']) }),
+    description: 'Switch the terminal between dark (default) and light.',
+    input: z.object({ name: z.enum(['default', 'light']) }),
     visibility: 'hidden', tier: 'public', surfaces: ['chat'],
     async handler({ name }) {
-      return { text: `Theme set to ${name}.`, ui: name === 'matrix' ? { effect: 'matrix' } : { effect: 'theme', theme: { name } } };
+      return { text: `Theme set to ${name}.`, ui: { effect: 'theme', theme: { name } } };
     },
   }),
   tool({
