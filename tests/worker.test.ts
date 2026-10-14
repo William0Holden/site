@@ -44,3 +44,12 @@ test('old page URLs map to terminal commands', () => {
   assert.equal(movedPath('/p/../x'), null);
   assert.equal(movedPath('/'), null);
 });
+
+test('the system prompt lists every image and video the assistant may show', async () => {
+  const { systemPrompt } = await import('../worker/prompt.ts');
+  const { readFileSync } = await import('node:fs');
+  const content = JSON.parse(readFileSync(new URL('../dist/api/content.json', import.meta.url), 'utf8'));
+  const p = systemPrompt(content);
+  for (const m of (content.media as { id: string; type: string }[]).filter((x) => x.type === 'image' || x.type === 'video')) assert.ok(p.includes(`- ${m.id}`), m.id);
+  assert.ok(!p.includes('- resume-pdf'));
+});

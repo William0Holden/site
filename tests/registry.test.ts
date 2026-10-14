@@ -56,3 +56,12 @@ test('manifest has JSON schemas and no personal-tier tools', () => {
   const m = manifest();
   assert.ok(m.every((t) => t.inputSchema && t.tier === 'public'));
 });
+
+test('show_media shows the chosen ids, in order, and never the PDF', async () => {
+  const t = tools.find((x) => x.name === 'show_media')!;
+  const r = await t.handler({ ids: ['decktection-detections', 'resume-pdf', 'confusion-matrix'] }, ctx);
+  assert.deepEqual((r.ui as { props: { ids: string[] } }).props.ids, ['decktection-detections', 'confusion-matrix']);
+  const one = await t.handler({ ids: ['headshot'] }, ctx);
+  assert.equal((one.ui as { component: string }).component, 'MediaViewer');
+  assert.match((await t.handler({ ids: ['nope'] }, ctx)).text, /No media found/);
+});
