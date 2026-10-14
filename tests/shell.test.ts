@@ -1,16 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createShell, runReadonly, isCommandLine, looksLikeQuestion, looksLikeSentence } from '../shell/index.ts';
-import { stripAnsi } from '../shell/ansi.ts';
+import { createShell, runReadonly, MOTD, SUGGESTED_QUESTIONS, isCommandLine, looksLikeQuestion, looksLikeSentence } from '../shell/index.ts';
+import { stripAnsi, reflow } from '../shell/ansi.ts';
 import type { Host, IO } from '../shell/sh.ts';
 import type { Content } from '../tools/registry.ts';
 
 const content: Content = JSON.parse(readFileSync(new URL('../dist/api/content.json', import.meta.url), 'utf8'));
 
-function harness() {
+function harness(cols = 80) {
   const ui: unknown[] = [];
-  const host: Host = { cols: () => 80, now: () => 1_760_000_000_000, ui: (u) => ui.push(u) };
+  const host: Host = { cols: () => cols, now: () => 1_760_000_000_000, ui: (u) => ui.push(u) };
   const sh = createShell(content, host);
   const run = async (line: string, tty = false) => {
     let out = '', err = '';
@@ -143,4 +143,34 @@ test('guest files named like prototype keys are refused', async () => {
   sh.fs.importGuest('{"d":{"__proto__":{"f":"bad"},"a.txt":{"f":"ok"}}}');
   assert.equal(sh.fs.readFile('/home/guest/a.txt'), 'ok');
   assert.equal(Object.getPrototypeOf((sh.fs.stat('/home/guest') as { children: object }).children), Object.prototype);
+});
+
+test('markdown prose re-wraps but lists, headings and code keep their breaks', () => {
+  assert.equal(reflow('one\ntwo\n\nthree'), 'one two\n\nthree');
+  assert.equal(reflow('# Head\nbody\n- a\n- b\nwrapped'), '# Head\nbody\n- a\n- b wrapped');
+  assert.equal(reflow('x\n```\nkeep\nthis\n```\ny\nz'), 'x\n```\nkeep\nthis\n```\ny z');
+  assert.equal(reflow('| a |\n| b |'), '| a |\n| b |');
+  assert.equal(reflow('- item that\n  continues\n- next'), '- item that continues\n- next');
+  assert.equal(reflow('1. a\n   b\n   c\n2. d'), '1. a b c\n2. d');
+  for (const keep of ['Example:\n\n    $ npm i\n    $ npm test', 'src/\n  a.ts\n  b.ts', '1. a\n\n   code\n   more', 'a | b\n---|---\n1 | 2', '+ one\n+ two'])
+    assert.equal(reflow(keep), keep, keep);
+});
+
+test('resume stacks the project table on narrow screens', async () => {
+  const { run } = harness(44);
+  const lines = (await run('resume')).out.split('\n');
+  const i = lines.findIndex((l) => l.trim() === 'decktection');
+  assert.ok(i > 0, 'slug on its own line');
+  assert.match(lines[i + 1], /^\s+DeckTection/);
+  // The "more:" footer holds clickable links, which must not be split, so the browser soft-wraps it.
+  assert.ok(lines.every((l) => l.length <= 46 || l.startsWith('more:')), lines.find((l) => l.length > 46));
+});
+
+test('welcome screen offers plain-English options whose links are all safe', () => {
+  const { sh } = harness();
+  const text = stripAnsi(MOTD);
+  for (const w of ['[ resume ]', '[ projects ]', '[ contact ]', 'what was his thesis about?', 'help']) assert.ok(text.includes(w), w);
+  const targets = [...MOTD.matchAll(/\x1b\]8;;cmd:([^\x1b]*)\x1b\\/g)].map((m) => m[1]);
+  assert.ok(targets.length >= 6);
+  for (const t of targets) assert.ok(SUGGESTED_QUESTIONS.includes(t) || sh.commands[t]?.readonly, t);
 });

@@ -1,6 +1,6 @@
 // The whole site: a terminal over a simulated Linux shell, with the AI assistant one question away.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { createShell, isCommandLine, looksLikeQuestion, looksLikeSentence, MOTD, type Host, type IO, type Shell } from '../../shell/index';
+import { createShell, isCommandLine, looksLikeQuestion, looksLikeSentence, MOTD, SUGGESTED_QUESTIONS, type Host, type IO, type Shell } from '../../shell/index';
 import type { Program } from '../../shell/sh';
 import { c, mdToAnsi, stripAnsi, columns } from '../../shell/ansi';
 import type { Content } from '../../tools/registry';
@@ -103,6 +103,8 @@ export default function Terminal() {
   }, []);
 
   // ---- the AI assistant ----
+  const [aiState, setAiState] = useState<'unknown' | 'online' | 'resting' | 'offline'>('unknown');
+  useEffect(() => { chatStatus().then((s) => setAiState(!s?.enabled ? 'offline' : s.resting ? 'resting' : 'online')); }, []);
   const ask = useCallback(async (q: string, io: IO, opts?: { kind?: 'fit' }): Promise<number> => {
     const status = await chatStatus();
     if (!status?.enabled) { io.err(ERRORS.not_configured + '\n'); return 1; }
@@ -297,11 +299,23 @@ export default function Terminal() {
   useLayoutEffect(() => {
     const el = screen.current, m = measure.current;
     if (!el || !m) return;
-    const fit = () => { const w = m.getBoundingClientRect().width / 10 || 8.4; cols.current = Math.max(30, Math.floor((el.clientWidth - 40) / w) - 1); };
+    const fit = () => {
+      const w = m.getBoundingClientRect().width / 10 || 8.4;
+      const cs = getComputedStyle(el);
+      const inner = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      cols.current = Math.max(30, Math.floor(inner / w) - 1);
+    };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
-    return () => ro.disconnect();
+    // Size to the visual viewport so the on-screen keyboard doesn't cover the prompt (iOS ignores
+    // interactive-widget=resizes-content).
+    const vv = window.visualViewport;
+    const root = document.documentElement;
+    const onVv = () => { if (vv) { root.style.setProperty('--vvh', `${vv.height}px`); root.style.setProperty('--vvt', `${vv.offsetTop}px`); if (stick.current) el.scrollTop = el.scrollHeight; } };
+    onVv();
+    vv?.addEventListener('resize', onVv); vv?.addEventListener('scroll', onVv);
+    return () => { ro.disconnect(); vv?.removeEventListener('resize', onVv); vv?.removeEventListener('scroll', onVv); };
   }, []);
 
   // Keep the view pinned to the bottom unless the reader scrolled up.
@@ -447,18 +461,23 @@ export default function Terminal() {
   const linePrompt = readline ? readline.prompt : mode === 'exited' ? '' : prompt;
   const h = sh.current?.history ?? [];
   const safeCmds = sh.current ? safeCommandSet(sh.current) : undefined;
-  const allowCmd = (cmd: string) => (sh.current ? isSafeCmd(sh.current, cmd) : /^resume$/.test(cmd));
+  const allowCmd = (cmd: string) => SUGGESTED_QUESTIONS.includes(cmd) || (sh.current ? isSafeCmd(sh.current, cmd) : /^(resume|projects|contact|help)$/.test(cmd));
 
   return (
     <RunContext.Provider value={runCommand}>
-      <div className="term" onClick={focus}>
+      {/* Portalled overlays (the lightbox) bubble React clicks here too; only real terminal clicks focus the prompt. */}
+      <div className="term" onClick={(e) => { if (e.currentTarget.contains(e.target as Node)) focus(); }}>
+        <div className="term-bar" aria-label="Status">
+          <span>wholden.com <span className="term-bar-dim">· terminal + AI assistant</span></span>
+          <span className="term-bar-ai" data-state={aiState}>{aiState === 'online' ? '● AI assistant online' : aiState === 'resting' ? '○ AI resting · commands work' : aiState === 'offline' ? '○ AI offline · commands work' : '○ AI'}</span>
+        </div>
         <span ref={measure} className="term-measure" aria-hidden="true">MMMMMMMMMM</span>
         <div className="term-screen" ref={screen} role="log" aria-live="polite" aria-label="Terminal output"
           onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
           {entries.map((e) => (
             e.k === 'text' ? <pre key={e.id} className="term-text"><Ansi text={e.text} onCommand={runCommand} allowCmd={allowCmd} /></pre>
               : e.k === 'ui' ? <div key={e.id} className="term-ui"><UiBlock content={content} ui={e.ui} /></div>
-                : <div key={e.id} className="term-ai"><pre className="term-text"><Ansi text={mdToAnsi(e.text, safeCmds)} onCommand={runCommand} allowCmd={allowCmd} />{e.note && <span className="term-note"><span className="spin" aria-hidden="true" /> {e.note}…</span>}</pre></div>
+                : <div key={e.id} className="term-ai"><span className="term-ai-label" aria-hidden="true">AI assistant</span><pre className="term-text"><Ansi text={mdToAnsi(e.text, safeCmds)} onCommand={runCommand} allowCmd={allowCmd} />{e.note && <span className="term-note"><span className="spin" aria-hidden="true" /> {e.note}…</span>}</pre></div>
           ))}
           {showInput && (
             <div className="term-line">
@@ -468,7 +487,7 @@ export default function Terminal() {
                 <pre className="term-text">
                   <Ansi text={linePrompt} />
                   <span className="term-input">{input.slice(0, caret)}<span className={`cursor${mode === 'exited' ? ' cursor-dim' : ''}`}>{input[caret] && input[caret] !== '\n' ? input[caret] : ' '}</span>{input[caret] === '\n' ? '\n' : ''}{input.slice(caret + 1)}</span>
-                  {!touched && !input && mode === 'idle' && h.length === 0 && <span className="term-ghost">type a command, or ask a question</span>}
+                  {!touched && !input && mode === 'idle' && h.length === 0 && <span className="term-ghost">ask the AI anything, or type a command</span>}
                 </pre>
               )}
               <textarea ref={ta} className="term-ta" value={input} rows={1} aria-label={readline ? 'Input' : 'Command line'} autoFocus

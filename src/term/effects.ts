@@ -3,12 +3,8 @@ const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 type Theme = { accent?: string; accent2?: string; bg?: string; fg?: string; muted?: string };
 export const THEMES: Record<string, Theme> = {
-  default: { accent: '#7aa2ff', accent2: '#b48cff', bg: '#0a0c12', fg: '#e8ebf2', muted: '#9aa3b5' },
-  matrix: { accent: '#39ff14', accent2: '#00b341', bg: '#020802', fg: '#b6ffb0', muted: '#4f9a4a' },
-  sunset: { accent: '#ff8a5b', accent2: '#ffd166', bg: '#140a0a', fg: '#ffe9dc', muted: '#c19a88' },
-  ocean: { accent: '#22d3ee', accent2: '#818cf8', bg: '#05080d', fg: '#e0f7ff', muted: '#8aa9b8' },
-  amber: { accent: '#ffb000', accent2: '#ffcc66', bg: '#0d0800', fg: '#ffb000', muted: '#a87400' },
-  paper: { accent: '#1f4fd1', accent2: '#8a2be2', bg: '#f7f5ef', fg: '#1d1d1f', muted: '#5f6368' },
+  default: { accent: '#ffffff', accent2: '#ffffff', bg: '#000000', fg: '#ffffff', muted: '#a3a3a3' },
+  light: { accent: '#000000', accent2: '#000000', bg: '#ffffff', fg: '#000000', muted: '#5c5c5c' },
 };
 const KEY = 'wholden-theme';
 
@@ -17,7 +13,8 @@ export function setTheme(t: Theme & { name?: string }) {
   const v = { ...named, ...Object.fromEntries(Object.entries(t).filter(([k, x]) => k !== 'name' && x)) } as Theme;
   const s = document.documentElement.style;
   for (const [k, x] of Object.entries(v)) if (x) s.setProperty(`--${k}`, x);
-  document.documentElement.dataset.theme = t.name === 'paper' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = (t.name ?? document.documentElement.dataset.theme) === 'light' ? 'light' : 'dark';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', v.bg ?? '#000000');
   try { if (t.name) localStorage.setItem(KEY, t.name); } catch { /* storage unavailable */ }
 }
 export function restoreTheme() {
@@ -39,7 +36,8 @@ function overlay(): [HTMLCanvasElement, CanvasRenderingContext2D] {
 export function confetti() {
   if (reduced()) return;
   const [c, ctx] = overlay();
-  const colors = ['#7aa2ff', '#b48cff', '#ff6b9a', '#ffd166', '#7fd18b'];
+  const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim() || '#fff';
+  const colors = [fg, '#808080', '#c0c0c0'];
   const parts = Array.from({ length: 140 }, () => ({
     x: innerWidth / 2, y: innerHeight * 0.35, vx: (Math.random() - 0.5) * 14, vy: Math.random() * -12 - 4,
     r: Math.random() * 6 + 3, c: colors[(Math.random() * colors.length) | 0], a: Math.random() * Math.PI,
@@ -57,7 +55,6 @@ export function confetti() {
 }
 
 export function matrix() {
-  setTheme({ name: 'matrix' });
   if (reduced()) return;
   const [c, ctx] = overlay();
   const size = 16;
@@ -66,9 +63,9 @@ export function matrix() {
   const chars = 'アイウエオカキクケコサシスセソ01WHOLDEN';
   const start = performance.now();
   const tick = (t: number) => {
-    ctx.fillStyle = 'rgba(2, 8, 2, 0.12)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
     ctx.fillRect(0, 0, innerWidth, innerHeight);
-    ctx.fillStyle = '#39ff14';
+    ctx.fillStyle = '#ffffff';
     ctx.font = `${size}px monospace`;
     drops.forEach((y, i) => {
       ctx.fillText(chars[(Math.random() * chars.length) | 0], i * size, y * size);
@@ -84,13 +81,13 @@ export function matrix() {
 export function chicken() {
   const el = document.createElement('div');
   el.setAttribute('aria-hidden', 'true');
-  el.innerHTML = `<div style="position:relative;border:2px solid #ff6b9a;padding:6px 8px 4px;background:rgba(255,107,154,.06)">
-    <span style="position:absolute;top:-1.35em;left:-2px;background:#ff6b9a;color:#14070c;font:600 11px/1.3 ui-monospace,monospace;padding:1px 5px">broiler 0.99</span>
+  el.innerHTML = `<div style="position:relative;border:2px solid #fff;padding:6px 8px 4px;background:#000">
+    <span style="position:absolute;top:-1.35em;left:-2px;background:#fff;color:#000;font:600 11px/1.3 ui-monospace,monospace;padding:1px 5px">broiler 0.99</span>
     <svg width="48" height="48" viewBox="0 0 12 12" shape-rendering="crispEdges">
-      <rect x="6" y="1" width="2" height="1" fill="#e63946"/><rect x="5" y="2" width="4" height="3" fill="#f8f9fa"/>
-      <rect x="9" y="3" width="2" height="1" fill="#ffb703"/><rect x="7" y="3" width="1" height="1" fill="#14070c"/>
-      <rect x="2" y="5" width="8" height="4" fill="#f8f9fa"/><rect x="1" y="4" width="2" height="3" fill="#e9ecef"/>
-      <rect x="4" y="6" width="3" height="2" fill="#dee2e6"/><rect x="4" y="9" width="1" height="2" fill="#ffb703"/><rect x="7" y="9" width="1" height="2" fill="#ffb703"/>
+      <rect x="6" y="1" width="2" height="1" fill="#ffffff"/><rect x="5" y="2" width="4" height="3" fill="#ffffff"/>
+      <rect x="9" y="3" width="2" height="1" fill="#bdbdbd"/><rect x="7" y="3" width="1" height="1" fill="#000000"/>
+      <rect x="2" y="5" width="8" height="4" fill="#ffffff"/><rect x="1" y="4" width="2" height="3" fill="#e0e0e0"/>
+      <rect x="4" y="6" width="3" height="2" fill="#cfcfcf"/><rect x="4" y="9" width="1" height="2" fill="#bdbdbd"/><rect x="7" y="9" width="1" height="2" fill="#bdbdbd"/>
     </svg></div>`;
   Object.assign(el.style, { position: 'fixed', bottom: '18px', left: '-90px', zIndex: '9999', pointerEvents: 'none' });
   document.body.appendChild(el);

@@ -1,13 +1,13 @@
 /* Theme tokens are registered so colour changes animate between project moods. */
-@property --accent { syntax: '<color>'; inherits: true; initial-value: #7aa2ff; }
-@property --accent2 { syntax: '<color>'; inherits: true; initial-value: #b48cff; }
-@property --bg { syntax: '<color>'; inherits: true; initial-value: #0a0c12; }
+@property --accent { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --accent2 { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --bg { syntax: '<color>'; inherits: true; initial-value: #000000; }
 
 :root {
-  --fg: #e8ebf2;
-  --muted: #9aa3b5;
-  --surface: color-mix(in oklab, var(--bg), white 6%);
-  --border: color-mix(in oklab, var(--bg), white 14%);
+  --fg: #ffffff;
+  --muted: #a3a3a3;
+  --surface: var(--bg);
+  --border: color-mix(in oklab, var(--fg), transparent 65%);
   --radius: 14px;
   --max: 68rem;
   color-scheme: dark;
@@ -20,9 +20,9 @@ html { background: var(--bg); transition: --accent 700ms ease, --accent2 700ms e
 body { margin: 0; min-height: 100dvh; color: var(--fg); background: var(--bg); line-height: 1.6; }
 html.js body:has(.term) { overflow: hidden; }
 html:not(.js) .term { display: none; }
-:root[data-theme='light'] { color-scheme: light; --surface: color-mix(in oklab, var(--bg), black 4%); --border: color-mix(in oklab, var(--bg), black 15%); }
-a { color: var(--accent); text-underline-offset: 3px; }
-a:hover { color: var(--accent2); }
+:root[data-theme='light'] { color-scheme: light; --surface: var(--bg); }
+a { color: inherit; text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
 img { max-width: 100%; height: auto; }
 code, pre, .mono { font-family: var(--mono); }
 
