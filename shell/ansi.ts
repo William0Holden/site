@@ -27,10 +27,34 @@ export function wrap(text: string, width: number, indent = ''): string {
 
 // Markdown (as written in content/ and by the model) to terminal text.
 // With `commands`, inline code whose first word is in the set becomes a clickable command.
+// Joins hard-wrapped prose lines so text re-wraps to the screen. Lists, headings, tables, quotes,
+// indented lines and fenced code keep their line breaks.
+const BLOCK_START = /^(\s|[-*+•>|#]|\d+[.)]\s|```)/;
+const LIST_ITEM = /^\s*([-*+•]|\d+[.)])\s/;
+export function reflow(md: string): string {
+  return md.split(/(```[\s\S]*?(?:```|$))/).map((part, i) => {
+    if (i % 2) return part;
+    const lines = part.split('\n');
+    const out: string[] = [];
+    // True while the current paragraph is a list item, so its indented lines are continuations.
+    let inItem = false;
+    for (const line of lines) {
+      const prev = out.length ? out[out.length - 1] : '';
+      if (!line.trim()) { out.push(line); inItem = false; continue; }
+      if (LIST_ITEM.test(line)) { out.push(line); inItem = true; continue; }
+      const indented = /^\s/.test(line);
+      const join = prev.trim() !== '' && !prev.includes('|') && !/^#{1,6}\s/.test(prev) && !/\s{2}$/.test(prev)
+        && (indented ? inItem : !BLOCK_START.test(line));
+      if (join) out[out.length - 1] = `${prev} ${line.trim()}`;
+      else { out.push(line); if (!indented) inItem = false; }
+    }
+    return out.join('\n');
+  }).join('');
+}
+
 export function mdToAnsi(md: string, commands?: Set<string>): string {
   const code = (t: string) => (commands && t.length < 80 && !/[>;&|`$]/.test(t) && commands.has(t.split(' ')[0]) ? cmdLink(c(t, 'cyan'), t) : c(t, 'cyan'));
-  return md
-    .replace(/\r/g, '')
+  return reflow(md.replace(/\r/g, ''))
     .replace(/^#{1,6}\s+(.+)$/gm, (_m, t) => c(t, 'bold'))
     .replace(/^(\s*)[-*•]\s+/gm, '$1• ')
     .replace(/\*\*([^*\n]+)\*\*/g, (_m, t) => c(t, 'bold'))

@@ -1,6 +1,7 @@
 // The fixed UI component registry. Tools return { component, props }; only these render.
 // Every prop is looked up against public content, so the model can't inject markup or URLs.
-import { createContext, useContext, type ReactElement } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import type { Content, Media } from '../../tools/registry';
 
 type Props = { content: Content; props: Record<string, unknown> };
@@ -8,16 +9,89 @@ type Props = { content: Content; props: Record<string, unknown> };
 // Lets a block run a shell command (e.g. a project card's gallery button).
 export const RunContext = createContext<(cmd: string) => void>(() => {});
 
-function MediaItem({ m }: { m: Media }) {
+// Full-screen viewer: arrows / swipe to move, Esc or tap outside to close. Keys are captured so the
+// terminal underneath doesn't see them while it is open.
+function Lightbox({ items, start, onClose }: { items: Media[]; start: number; onClose: () => void }) {
+  const [i, setI] = useState(start);
+  const box = useRef<HTMLDivElement>(null);
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const go = useCallback((d: number) => setI((x) => (x + d + items.length) % items.length), [items.length]);
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    box.current?.focus();
+    const key = (e: KeyboardEvent) => {
+      const el = box.current;
+      e.stopPropagation();
+      if (!el) return;
+      if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
+      // Keep focus inside the dialog.
+      if (e.key === 'Tab') {
+        const f = [...el.querySelectorAll<HTMLElement>('button, video[controls]')];
+        const at = f.indexOf(document.activeElement as HTMLElement);
+        if (f.length) { e.preventDefault(); f[(at + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus(); }
+        return;
+      }
+      if (!el.contains(e.target as Node)) { e.preventDefault(); el.focus(); return; }
+      // A focused video keeps its own keys (space, seeking).
+      if ((e.target as HTMLElement).tagName === 'VIDEO') return;
+      if (e.key === 'ArrowRight' || e.key === 'l') go(1);
+      else if (e.key === 'ArrowLeft' || e.key === 'h') go(-1);
+    };
+    window.addEventListener('keydown', key, true);
+    return () => { window.removeEventListener('keydown', key, true); prev?.focus(); };
+  }, [go, onClose]);
+  const m = items[i];
+  return createPortal(
+    <div ref={box} className="lb" role="dialog" aria-modal="true" aria-label={m.title} tabIndex={-1}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onTouchStart={(e) => {
+        // One-finger swipes only, and not on the video (its scrubber drags too).
+        const t = e.touches[0];
+        touch.current = e.touches.length === 1 && (e.target as HTMLElement).tagName !== 'VIDEO' ? { x: t.clientX, y: t.clientY } : null;
+      }}
+      onTouchMove={(e) => { if (e.touches.length > 1) touch.current = null; }}
+      onTouchEnd={(e) => {
+        const t0 = touch.current; touch.current = null;
+        if (!t0) return;
+        const dx = e.changedTouches[0].clientX - t0.x, dy = e.changedTouches[0].clientY - t0.y;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+      }}>
+      <div className="lb-bar">
+        <span>{i + 1} / {items.length}</span>
+        <button type="button" className="lb-btn" onClick={onClose} aria-label="Close">esc ✕</button>
+      </div>
+      <figure key={m.id} className="lb-fig" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        {m.type === 'video'
+          ? <video src={m.url} poster={m.poster} controls autoPlay muted loop playsInline aria-label={m.alt} />
+          : <img src={m.url} alt={m.alt} />}
+        <figcaption><strong>{m.title}.</strong> {m.caption}</figcaption>
+      </figure>
+      {items.length > 1 && <>
+        <button type="button" className="lb-btn lb-prev" onClick={() => go(-1)} aria-label="Previous">‹</button>
+        <button type="button" className="lb-btn lb-next" onClick={() => go(1)} aria-label="Next">›</button>
+      </>}
+    </div>,
+    document.body,
+  );
+}
+
+function MediaGrid({ items, single }: { items: Media[]; single?: boolean }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const close = useCallback(() => setOpen(null), []);
   return (
-    <figure className="cm-figure">
-      {m.type === 'video' ? (
-        <video src={m.url} poster={m.poster} controls muted loop playsInline preload="metadata" aria-label={m.alt} />
-      ) : (
-        <a href={m.url} target="_blank" rel="noopener"><img src={m.url} alt={m.alt} loading="lazy" /></a>
-      )}
-      <figcaption><strong>{m.title}.</strong> {m.caption}</figcaption>
-    </figure>
+    <>
+      <div className={single ? 'cm-gallery cm-single' : 'cm-gallery'}>
+        {items.map((m, k) => (
+          <figure key={m.id} className="cm-figure" style={{ '--i': k } as CSSProperties}>
+            {m.type === 'video'
+              ? <video src={m.url} poster={m.poster} controls muted loop playsInline preload="metadata" aria-label={m.alt} />
+              : <button type="button" className="cm-zoom" onClick={(e) => { e.stopPropagation(); setOpen(k); }} aria-label={`View ${m.title} full screen`}><img src={m.url} alt={m.alt} loading="lazy" /></button>}
+            <figcaption><strong>{m.title}.</strong> {m.caption}</figcaption>
+          </figure>
+        ))}
+      </div>
+      {open !== null && <Lightbox items={items} start={open} onClose={close} />}
+    </>
   );
 }
 
@@ -30,8 +104,9 @@ function ProjectCard({ content, props }: Props) {
   return (
     <div className="cm-card">
       {thumbs.length > 0 && (
-        <button type="button" className="cm-thumbs" onClick={() => run(`gallery ${p.slug}`)} aria-label={`Show all ${media.length} figures for ${p.title}`}>
-          {thumbs.map((m) => <img key={m.id} src={m.url} alt="" loading="lazy" />)}
+        <button type="button" className="cm-thumbs" data-n={thumbs.length} onClick={() => run(`gallery ${p.slug}`)} aria-label={`Show all ${media.length} figures for ${p.title}`}>
+          {thumbs.map((m, k) => <img key={m.id} src={m.url} alt="" loading="lazy" style={{ '--i': k } as CSSProperties} />)}
+          {media.length > thumbs.length && <span className="cm-more">+{media.length - thumbs.length}</span>}
         </button>
       )}
       <span className="cm-eyebrow">{p.kind.replace('-', ' ')} · {p.period}</span>
@@ -45,13 +120,13 @@ function ProjectCard({ content, props }: Props) {
 
 function MediaViewer({ content, props }: Props) {
   const m = content.media.find((x) => x.id === props.id);
-  return m ? <MediaItem m={m} /> : null;
+  return m ? <MediaGrid items={[m]} single /> : null;
 }
 
 function Gallery({ content, props }: Props) {
   const ids = Array.isArray(props.ids) ? (props.ids as string[]) : [];
   const items = ids.map((id) => content.media.find((m) => m.id === id)).filter((m): m is Media => Boolean(m));
-  return <div className="cm-gallery">{items.map((m) => <MediaItem key={m.id} m={m} />)}</div>;
+  return <MediaGrid items={items} />;
 }
 
 function SitePreview({ content, props }: Props) {
@@ -123,7 +198,7 @@ function FitReport({ content, props }: Props) {
   const rows = (Array.isArray(props.rows) ? props.rows : []) as FitRow[];
   const mark: Record<string, string> = { strong: '●', partial: '◐', none: '○' };
   return (
-    <table className="cm-fit">
+    <div className="cm-fit-wrap"><table className="cm-fit">
       <thead><tr><th>requirement</th><th>match</th><th>evidence</th></tr></thead>
       <tbody>
         {rows.slice(0, 12).map((r, i) => {
@@ -138,7 +213,7 @@ function FitReport({ content, props }: Props) {
           );
         })}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
