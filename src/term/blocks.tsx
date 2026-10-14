@@ -2,7 +2,8 @@
 // Every prop is looked up against public content, so the model can't inject markup or URLs.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
-import type { Content, Media } from '../../tools/registry';
+import type { Content, Media, Project } from '../../tools/registry';
+import { skillUses, timelineItems } from '../../shell/portfolio';
 
 type Props = { content: Content; props: Record<string, unknown> };
 
@@ -92,6 +93,135 @@ function MediaGrid({ items, single }: { items: Media[]; single?: boolean }) {
       </div>
       {open !== null && <Lightbox items={items} start={open} onClose={close} />}
     </>
+  );
+}
+
+
+// ---- shared bits ----
+const delay = (k: number) => ({ '--i': k } as CSSProperties);
+const mediaOf = (content: Content, p: Project) => p.media.map((id) => content.media.find((m) => m.id === id)).filter((m): m is Media => Boolean(m));
+// The image that best represents a project: its first still, or a video's poster.
+function coverOf(content: Content, p: Project): string | undefined {
+  const ms = mediaOf(content, p);
+  return ms.find((m) => m.type === 'image')?.url ?? ms.find((m) => m.poster)?.poster;
+}
+
+// A project's cover: its own figure when it has one, otherwise a typographic plate built from its title.
+function Cover({ content, p }: { content: Content; p: Project }) {
+  const src = coverOf(content, p);
+  // Charts and diagrams (PNG) are shown whole; photos fill the frame.
+  if (src) return <span className="cv cv-img"><img src={src} alt="" loading="lazy" className={/\.png$/i.test(src) ? 'cv-fit' : undefined} /></span>;
+  const stack = p.stack.slice(0, 6);
+  return (
+    <span className="cv cv-type" aria-hidden="true">
+      <span className="cv-cmd"><span className="cv-dim">$</span> tree ~/projects/{p.slug}</span>
+      <span className="cv-tree">
+        {stack.map((x, i) => <span key={x}><span className="cv-dim">{i === stack.length - 1 ? '└── ' : '├── '}</span>{x}</span>)}
+      </span>
+    </span>
+  );
+}
+
+function ProfileHeader({ content }: Props) {
+  const s = content.site;
+  const run = useContext(RunContext);
+  return (
+    <div className="pf">
+      <img className="pf-photo" src="/media/headshot-480.jpg" alt={`Photo of ${s.name}`} width={480} height={480} />
+      <div className="pf-body">
+        <span className="pf-name">{s.name}</span>
+        <span className="pf-role">{s.role} · {s.location}</span>
+        <span className="cm-muted">{s.tagline}</span>
+        <span className="pf-links">
+          {s.links.map((l) => (
+            <a key={l.url} className="cm-btn" href={l.url} target={l.url.startsWith('mailto:') ? undefined : '_blank'} rel="noopener">
+              {l.label}{l.url.startsWith('mailto:') ? `: ${l.url.slice(7)}` : ' ↗'}
+            </a>
+          ))}
+          <a className="cm-btn" href="/resume.pdf" target="_blank" rel="noopener">Resume PDF ↗</a>
+          <button type="button" className="cm-btn" onClick={() => run('projects')}>Projects</button>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ProjectGrid({ content, props }: Props) {
+  const run = useContext(RunContext);
+  const slugs = Array.isArray(props.slugs) ? (props.slugs as unknown[]).map(String) : content.projects.map((p) => p.slug);
+  const list = slugs.map((sl) => content.projects.find((p) => p.slug === sl)).filter((p): p is Project => Boolean(p)).slice(0, 24);
+  return (
+    <div className="pg">
+      {list.map((p, k) => (
+        <button type="button" key={p.slug} className="pg-card" style={delay(k)} onClick={() => run(`open ${p.slug}`)} aria-label={`Open ${p.title}`}>
+          <Cover content={content} p={p} />
+          <span className="pg-meta"><span>{p.kind.replace('-', ' ')}</span><span>{p.period}</span></span>
+          <strong className="pg-title">{p.title}</strong>
+          <span className="pg-sum">{p.summary}</span>
+          <span className="pg-stack">{p.stack.slice(0, 4).join(' · ')}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const TL_KIND: Record<string, string> = { work: 'work', edu: 'education', project: 'project', lab: 'homelab', pub: 'publication' };
+function Timeline({ content }: Props) {
+  const run = useContext(RunContext);
+  const items = timelineItems(content);
+  let year = '';
+  return (
+    <ol className="tl">
+      {items.map((it, k) => {
+        const y = it.start.slice(0, 4);
+        const head = y !== year ? (year = y) : null;
+        const p = it.slug ? content.projects.find((x) => x.slug === it.slug) : undefined;
+        const img = p ? coverOf(content, p) : undefined;
+        const body = (
+          <>
+            <span className="tl-text">
+              <span className="tl-kind">{TL_KIND[it.kind] ?? it.kind}</span>
+              <span className="tl-label">{it.label}</span>
+              <span className="cm-muted">{it.detail}</span>
+            </span>
+            {img && <img className="tl-img" src={img} alt="" loading="lazy" />}
+          </>
+        );
+        return (
+          <li key={k} className={`tl-item tl-${it.kind}`} style={delay(k)}>
+            {head && <span className="tl-year">{head}</span>}
+            {p ? <button type="button" className="tl-card" onClick={() => run(`open ${p.slug}`)}>{body}</button> : <span className="tl-card">{body}</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function SkillMap({ content, props }: Props) {
+  const run = useContext(RunContext);
+  const want = typeof props.area === 'string' ? props.area.toLowerCase() : '';
+  const areas = (content.site.skills ?? []).filter((a) => !want || a.area.toLowerCase().startsWith(want));
+  return (
+    <div className="sk">
+      {areas.map((a, k) => (
+        <section key={a.area} className="sk-area" style={delay(k)}>
+          <span className="cm-eyebrow">{a.area}</span>
+          <span className="sk-chips">
+            {a.items.map((it) => {
+              const n = skillUses(content, it).length;
+              return (
+                <button type="button" key={it} className={n ? 'sk-chip sk-used' : 'sk-chip'} onClick={() => run(`skills ${it}`)}
+                  title={n ? `${n} public project${n > 1 ? 's' : ''}` : 'on the resume'}>
+                  {it}{n > 0 && <span className="sk-n">{n}</span>}
+                </button>
+              );
+            })}
+          </span>
+        </section>
+      ))}
+      <span className="cm-muted sk-key">numbers = public projects that use it · click a skill for those projects</span>
+    </div>
   );
 }
 
@@ -217,7 +347,7 @@ function FitReport({ content, props }: Props) {
   );
 }
 
-const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
+const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { ProfileHeader, ProjectGrid, Timeline, SkillMap, FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
 
 export function UiBlock({ content, ui }: { content: Content | null; ui: { component: string; props: Record<string, unknown> } }) {
   const C = REGISTRY[ui.component];
