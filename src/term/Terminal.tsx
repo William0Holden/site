@@ -17,6 +17,8 @@ type Mode = 'loading' | 'idle' | 'running' | 'readline' | 'program' | 'exited';
 
 const STORE = 'wholden-sh-v1';
 const CHAT_STORE = 'wholden-ask-v1';
+// Bookkeeping notes the model must never show (older builds put them in assistant turns).
+const stripNotes = (s: string) => s.replace(/\[tools used:[^\]\n]*\]?/gi, '').replace(/^\(context:[^)\n]*\)\n?/i, '').trimEnd();
 const MAX_ENTRIES = 1500;
 const MAX_CHAT_TURNS = 10;
 // Commands a link (/?cmd=...) may run on load: read-only, no redirection or chaining.
@@ -105,6 +107,7 @@ export default function Terminal() {
   // ---- the AI assistant ----
   const [aiState, setAiState] = useState<'unknown' | 'online' | 'resting' | 'offline'>('unknown');
   useEffect(() => { chatStatus().then((s) => setAiState(!s?.enabled ? 'offline' : s.resting ? 'resting' : 'online')); }, []);
+  const lastTools = useRef<string[]>([]);
   const ask = useCallback(async (q: string, io: IO, opts?: { kind?: 'fit' }): Promise<number> => {
     const status = await chatStatus();
     if (!status?.enabled) { io.err(ERRORS.not_configured + '\n'); return 1; }
@@ -114,7 +117,10 @@ export default function Terminal() {
     // Keep the conversation short: the most recent turns only.
     let n = 0;
     for (let i = chat.current.length - 1; i >= 0; i--) if (chat.current[i].role === 'user' && ++n === MAX_CHAT_TURNS - 1) { chat.current = chat.current.slice(i); break; }
-    const messages: ChatMsg[] = [...chat.current, { role: 'user', content: q }];
+    // Tool results aren't kept in history, so tell the model its previous reply was tool-backed
+    // (prompt rule 11). It goes in the visitor's turn, which the model never imitates.
+    const ctxNote = lastTools.current.length && opts?.kind !== 'fit' ? `(context: your previous reply was based on ${lastTools.current.join(', ')} results)\n` : '';
+    const messages: ChatMsg[] = [...chat.current, { role: 'user', content: q.length + ctxNote.length <= max ? ctxNote + q : q }];
     let full = '';
     const used = new Set<string>();
     let aiId: number | null = null;
@@ -155,9 +161,9 @@ export default function Terminal() {
       setEntries((prev) => prev.filter((x) => !(x.k === 'ai' && !x.text)));
     }
     // Tool results aren't kept in history, so note which tools backed this reply (see prompt rule 11).
-    const backed = used.size ? `\n\n[tools used: ${[...used].join(', ')}]` : '';
-    chat.current = [...messages, { role: 'assistant', content: full.slice(0, 3000 - backed.length) + backed }];
-    if (!io.isTTY) io.out(stripAnsi(mdToAnsi(full)) + '\n');
+    lastTools.current = [...used];
+    chat.current = [...messages, { role: 'assistant', content: stripNotes(full).slice(0, 3000) }];
+    if (!io.isTTY) io.out(stripAnsi(mdToAnsi(stripNotes(full))) + '\n');
     return 0;
 
     async function apply(e: ChatEvent) {
@@ -198,7 +204,7 @@ export default function Terminal() {
       requestAnimationFrame(() => ta.current?.focus());
     }),
     ask: (q, io, opts) => ask(q, io, opts),
-    resetChat: () => { chat.current = []; },
+    resetChat: () => { chat.current = []; lastTools.current = []; },
     persist,
     exit: () => { modeRef.current = 'exited'; },
     clear: () => { queue.current = []; setEntries([]); },
@@ -480,7 +486,7 @@ export default function Terminal() {
           {entries.map((e) => (
             e.k === 'text' ? <pre key={e.id} className="term-text"><Ansi text={e.text} onCommand={runCommand} allowCmd={allowCmd} /></pre>
               : e.k === 'ui' ? <div key={e.id} className="term-ui"><UiBlock content={content} ui={e.ui} /></div>
-                : <div key={e.id} className="term-ai"><span className="term-ai-label" aria-hidden="true">AI assistant</span><pre className="term-text"><Ansi text={mdToAnsi(e.text, safeCmds)} onCommand={runCommand} allowCmd={allowCmd} />{e.note && <span className="term-note"><span className="spin" aria-hidden="true" /> {e.note}…</span>}</pre></div>
+                : <div key={e.id} className="term-ai"><span className="term-ai-label" aria-hidden="true">AI assistant</span><pre className="term-text"><Ansi text={mdToAnsi(stripNotes(e.text), safeCmds)} onCommand={runCommand} allowCmd={allowCmd} />{e.note && <span className="term-note"><span className="spin" aria-hidden="true" /> {e.note}…</span>}</pre></div>
           ))}
           {showInput && (
             <div className="term-line">
