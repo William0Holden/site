@@ -13,6 +13,23 @@ const desc = description ?? site.data.tagline;
   <head>
     <meta charset="utf-8" />
     <script is:inline>document.documentElement.classList.add('js')</script>
+    <script is:inline>
+      // Safety net: if a site script/stylesheet fails to load (e.g. HTML from one deploy, assets
+      // from the next) or the terminal hasn't started after 10s, reload once with fresh files.
+      (function () {
+        var KEY = 'wholden-reloaded';
+        function reload() {
+          try { if (sessionStorage.getItem(KEY)) return; sessionStorage.setItem(KEY, '1'); } catch (e) { return; }
+          var u = new URL(location.href); u.searchParams.set('_r', Date.now().toString(36)); location.replace(u.toString());
+        }
+        addEventListener('error', function (e) {
+          var t = e.target, src = t && (t.src || t.href);
+          if (src && /\/_astro\//.test(src) && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) reload();
+        }, true);
+        setTimeout(function () { if (!document.documentElement.dataset.ready) reload(); }, 10000);
+        addEventListener('pageshow', function () { if (document.documentElement.dataset.ready) try { sessionStorage.removeItem(KEY); } catch (e) {} });
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
     <title>{pageTitle}</title>
     <meta name="description" content={desc} />
