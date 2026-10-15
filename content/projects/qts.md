@@ -8,7 +8,7 @@ role: Personal project
 stack: [Python, DuckDB, pandas, Alpaca API, Streamlit, Ollama]
 links:
   - { label: "Code", url: "https://github.com/William0Holden/quant-research-harness" }
-media: []
+media: [qts-signal-ic]
 featured: false
 order: 8
 theme: { accent: "#4ade80", accent2: "#facc15", bg: "#07100a", mood: "terminal green, ticker tape" }

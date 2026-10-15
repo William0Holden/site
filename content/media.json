@@ -171,5 +171,126 @@
     "projects": [
       "mt-evaluation"
     ]
+  },
+  {
+    "id": "bitebutler-data-flow",
+    "type": "image",
+    "src": "src/assets/bitebutler/data-flow.png",
+    "title": "How BiteButler fits together",
+    "alt": "Diagram: the Yelp, Tripadvisor and Google Places APIs feed Python fetchers, which write to Firebase, which the React Native iOS swipe app reads.",
+    "caption": "Restaurant data flows from three APIs through the Python fetchers into Firebase for the swipe-to-match iOS app.",
+    "projects": [
+      "bitebutler"
+    ]
+  },
+  {
+    "id": "qts-signal-ic",
+    "type": "image",
+    "src": "src/assets/qts/signal-ic.png",
+    "title": "Signal information coefficients",
+    "alt": "Grayscale horizontal bar chart of mean weekly Spearman information coefficient for 17 signals from 2025-01-21 to 2026-10-05. Reddit sentiment (about 0.08) leads, followed by news sentiment, Reddit mention anomaly and 12-1 momentum; low volatility (about -0.04) is most negative. Each label shows weeks of data.",
+    "caption": "Mean weekly information coefficient per signal; the Reddit and news signals have only 9–11 weeks of history, against 90 for the rest.",
+    "projects": [
+      "qts"
+    ]
+  },
+  {
+    "id": "cinema-home",
+    "type": "image",
+    "src": "src/assets/cinema-ebooking/home.jpg",
+    "title": "Movie listing",
+    "alt": "Cinema booking home page with a dark nav bar, title and category search boxes, and a 'Now Showing' row of five placeholder movie posters with rating, category, More Details and Book Now buttons.",
+    "caption": "The home page lists now-showing movies with title and category search (run locally with demo data and placeholder posters).",
+    "projects": [
+      "cinema-ebooking"
+    ]
+  },
+  {
+    "id": "cinema-seats",
+    "type": "image",
+    "src": "src/assets/cinema-ebooking/seats.jpg",
+    "title": "Seat selection",
+    "alt": "Select Your Seat page with a screen bar, a 10 by 10 grid of seats with seat E6 highlighted, and a ticket type dropdown with a Submit button.",
+    "caption": "Picking a seat from the auditorium grid and a ticket type (demo data).",
+    "projects": [
+      "cinema-ebooking"
+    ]
+  },
+  {
+    "id": "cinema-order",
+    "type": "image",
+    "src": "src/assets/cinema-ebooking/order.jpg",
+    "title": "Order summary",
+    "alt": "Order Summary page listing the movie title, date, time, seat row and number, and quantity, above a placeholder poster.",
+    "caption": "The order summary before checkout (demo data).",
+    "projects": [
+      "cinema-ebooking"
+    ]
+  },
+  {
+    "id": "poster-presentation",
+    "type": "image",
+    "src": "src/assets/broiler/poster-presentation.jpg",
+    "title": "Presenting the poster",
+    "alt": "William smiling beside his research poster 'Automated Behavior Recognition and Welfare Assessment in Broiler Chickens Using Smartphone and Spatiotemporal Deep Learning Models' at a conference poster session.",
+    "caption": "William with his poster at the UGA AI in Livestock and Poultry Farming Conference poster competition (2025), where it took 1st place.",
+    "projects": [
+      "broiler-behavior"
+    ]
+  },
+  {
+    "id": "decktection-siamese-classification",
+    "type": "image",
+    "src": "src/assets/decktection/siamese-classification.jpg",
+    "title": "Identifying a card",
+    "alt": "Three panels: a phone photo of trading cards on a desk with one card circled, the Siamese network's top-10 terminal output, and the matched card image labeled 'Top Guess (Correct)'.",
+    "caption": "The Siamese network ranks catalog cards by embedding distance; its top guess for the circled card is correct.",
+    "projects": [
+      "decktection"
+    ]
+  },
+  {
+    "id": "decktection-siamese-results",
+    "type": "image",
+    "src": "src/assets/decktection/siamese-results.png",
+    "title": "Siamese network training",
+    "alt": "Two line charts: accuracy of Siamese network predictions rising from about 69% to about 97% across four checkpoints, and training loss dropping from about 3.8 to near 0 over 20 epochs.",
+    "caption": "Accuracy and loss charts for the Siamese card-matching network, from the team's results.",
+    "projects": [
+      "decktection"
+    ]
+  },
+  {
+    "id": "decktection-yolo-training",
+    "type": "image",
+    "src": "src/assets/decktection/yolo-training-curves.png",
+    "title": "Detector training curves",
+    "alt": "Ten small YOLO training plots: train and validation box, class and DFL losses falling, and precision, recall, mAP50 and mAP50-95 rising toward 1.0 over about 300 epochs.",
+    "caption": "YOLO card-detector training: losses fall and mAP50 levels off near 0.995.",
+    "projects": [
+      "decktection"
+    ]
+  },
+  {
+    "id": "whisper-results-table",
+    "type": "image",
+    "src": "src/assets/whisper-optimization/results-table.png",
+    "title": "Results by model type",
+    "alt": "Table comparing four Whisper variants. Dynamic INT8 encoder with FP16 decoder: 17% WER, 12.5 s, 381 MB total. INT8 encoder with FP32 decoder: 17% WER, 9.1 s, 674 MB. FP16: 18% WER, 29.0 s, 464 MB. FP32 baseline: 18% WER, 7.3 s, 925 MB.",
+    "caption": "The team's results: the dynamic INT8 encoder is 88 MB versus 339 MB in FP32, with average WER unchanged (17–18%).",
+    "projects": [
+      "whisper-optimization"
+    ]
+  },
+  {
+    "id": "whisper-size-speed",
+    "type": "image",
+    "src": "src/assets/whisper-optimization/size-and-speed.png",
+    "title": "Size and inference time",
+    "alt": "Two bar charts: stacked encoder and decoder size in MB for INT8+FP16, INT8+FP32, FP16 and FP32 models, and total inference time in seconds for each, with FP16 slowest at about 29 s.",
+    "caption": "Encoder/decoder size and total inference time for each model type on CPU (ONNX Runtime).",
+    "projects": [
+      "whisper-optimization"
+    ]
   }
 ]

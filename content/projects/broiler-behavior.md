@@ -9,7 +9,7 @@ stack: [PyTorch, X3D, YOLOv11-Pose, ByteTrack, OpenCV, Python]
 links:
   - { label: "Paper (DOI)", url: "https://doi.org/10.1016/j.compag.2026.112159" }
   - { label: "Code", url: "https://github.com/William0Holden/chicken_action_recognition" }
-media: [broiler-behaviors, pipeline-overview, x3d-metadata-fusion, raw-vs-stabilized, annotated-tracking-frame, confusion-matrix, x3d-training-curves, chicken-trajectories, overall-density-heatmap]
+media: [poster-presentation, broiler-behaviors, pipeline-overview, x3d-metadata-fusion, raw-vs-stabilized, annotated-tracking-frame, confusion-matrix, x3d-training-curves, chicken-trajectories, overall-density-heatmap]
 featured: true
 order: 2
 theme: { accent: "#f5b84a", accent2: "#7fd18b", bg: "#14110a", mood: "warm, organic, farm-at-dawn" }
