@@ -123,6 +123,27 @@ function Cover({ content, p }: { content: Content; p: Project }) {
   );
 }
 
+// Welcome strip: William's photo and the projects that have figures, each a click away.
+function Showcase({ content }: Props) {
+  const run = useContext(RunContext);
+  const list = content.projects.filter((p) => coverOf(content, p)).slice(0, 6);
+  return (
+    <div className="sc" aria-label="Featured work">
+      <button type="button" className="sc-item sc-me" style={delay(0)} onClick={() => run('resume')}>
+        <img src="/media/headshot-480.jpg" alt={content.site.name} />
+        <span>resume</span>
+      </button>
+      {list.map((p, k) => (
+        <button type="button" key={p.slug} className="sc-item" style={delay(k + 1)} onClick={() => run(`open ${p.slug}`)}>
+          <img src={coverOf(content, p)} alt="" loading="lazy" className={/\.png$/i.test(coverOf(content, p)!) ? 'cv-fit' : undefined} />
+          <span>{p.title}</span>
+        </button>
+      ))}
+      <button type="button" className="sc-item sc-all" style={delay(list.length + 1)} onClick={() => run('gallery')}><span>all figures →</span></button>
+    </div>
+  );
+}
+
 function ProfileHeader({ content }: Props) {
   const s = content.site;
   const run = useContext(RunContext);
@@ -199,6 +220,26 @@ function Timeline({ content }: Props) {
   );
 }
 
+// Covers of the projects that use an area's skills, most-used first.
+function AreaThumbs({ content, items }: { content: Content; items: string[] }) {
+  const run = useContext(RunContext);
+  const count = new Map<string, number>();
+  for (const it of items) for (const p of skillUses(content, it)) count.set(p.slug, (count.get(p.slug) ?? 0) + 1);
+  const ps = [...count.entries()].sort((a, b) => b[1] - a[1])
+    .map(([slug]) => content.projects.find((p) => p.slug === slug)!)
+    .filter((p) => p && coverOf(content, p)).slice(0, 3);
+  if (!ps.length) return null;
+  return (
+    <span className="sk-thumbs">
+      {ps.map((p) => (
+        <button type="button" key={p.slug} onClick={() => run(`open ${p.slug}`)} title={p.title} aria-label={`Open ${p.title}`}>
+          <img src={coverOf(content, p)} alt="" loading="lazy" className={/\.png$/i.test(coverOf(content, p)!) ? 'cv-fit' : undefined} />
+        </button>
+      ))}
+    </span>
+  );
+}
+
 function SkillMap({ content, props }: Props) {
   const run = useContext(RunContext);
   const want = typeof props.area === 'string' ? props.area.toLowerCase() : '';
@@ -208,6 +249,7 @@ function SkillMap({ content, props }: Props) {
       {areas.map((a, k) => (
         <section key={a.area} className="sk-area" style={delay(k)}>
           <span className="cm-eyebrow">{a.area}</span>
+          <AreaThumbs content={content} items={a.items} />
           <span className="sk-chips">
             {a.items.map((it) => {
               const n = skillUses(content, it).length;
@@ -392,7 +434,7 @@ function ProjectCard({ content, props }: Props) {
     <div className="cm-card">
       {thumbs.length > 0 && (
         <button type="button" className="cm-thumbs" data-n={thumbs.length} onClick={() => run(`gallery ${p.slug}`)} aria-label={`Show all ${media.length} figures for ${p.title}`}>
-          {thumbs.map((m, k) => <img key={m.id} src={m.url} alt="" loading="lazy" style={{ '--i': k } as CSSProperties} />)}
+          {thumbs.map((m, k) => <img key={m.id} src={m.url} alt="" loading="lazy" className={/\.png$/i.test(m.url ?? '') ? 'cv-fit' : undefined} style={{ '--i': k } as CSSProperties} />)}
           {media.length > thumbs.length && <span className="cm-more">+{media.length - thumbs.length}</span>}
         </button>
       )}
@@ -504,7 +546,7 @@ function FitReport({ content, props }: Props) {
   );
 }
 
-const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { CodeBlock, Sources, MessageForm, OnePager, ProfileHeader, ProjectGrid, Timeline, SkillMap, FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
+const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { Showcase, CodeBlock, Sources, MessageForm, OnePager, ProfileHeader, ProjectGrid, Timeline, SkillMap, FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
 
 export function UiBlock({ content, ui }: { content: Content | null; ui: { component: string; props: Record<string, unknown> } }) {
   const C = REGISTRY[ui.component];

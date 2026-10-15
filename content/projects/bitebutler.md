@@ -8,7 +8,7 @@ role: UGA Hacks 8 (hackathon team project)
 stack: [React Native, Python, Firebase, Yelp API, Google Places API]
 links:
   - { label: "Code", url: "https://github.com/William0Holden/bitebutler" }
-media: []
+media: [bitebutler-data-flow]
 featured: false
 order: 10
 theme: { accent: "#fb923c", accent2: "#f472b6", bg: "#140b07", mood: "late-night food run" }

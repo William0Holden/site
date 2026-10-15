@@ -8,7 +8,7 @@ role: Computer Vision course project (CSCI 8820), with Alex Darwiche
 stack: [PyTorch, YOLOv12, SAM2, ResNet-18, OpenCV]
 links:
   - { label: "Code (team repo)", url: "https://github.com/DeckTection/DeckTection" }
-media: [decktection-detections, decktection-segmented-crop, decktection-normalized-card]
+media: [decktection-detections, decktection-segmented-crop, decktection-normalized-card, decktection-siamese-classification, decktection-yolo-training, decktection-siamese-results]
 featured: true
 order: 3
 theme: { accent: "#ff6b9a", accent2: "#ffd166", bg: "#140a12", mood: "playful, holographic foil" }

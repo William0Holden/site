@@ -42,7 +42,7 @@ export const isSafeCmd = (shell: Shell, cmd: string) => {
 const safeCommandSet = (shell: Shell) => (safeCache ??= new Set(Object.entries(shell.commands).filter(([, v]) => v.readonly).map(([k]) => k)));
 
 export default function Terminal() {
-  const [entries, setEntries] = useState<Entry[]>([{ id: 0, k: 'text', text: MOTD + '\n' }]);
+  const [entries, setEntries] = useState<Entry[]>([{ id: 0, k: 'text', text: MOTD + '\n' }, { id: -1, k: 'ui', ui: { component: 'Showcase', props: {} } }]);
   const [mode, setMode] = useState<Mode>('loading');
   const [prompt, setPrompt] = useState('\x1b[1;32mguest@wholden\x1b[0m:\x1b[1;34m~william\x1b[0m$ ');
   const [input, setInput] = useState('');
@@ -450,7 +450,7 @@ export default function Terminal() {
 
   const restart = () => {
     if (!content) return;
-    setEntries([{ id: nextId.current++, k: 'text', text: MOTD + '\n' }]);
+    setEntries([{ id: nextId.current++, k: 'text', text: MOTD + '\n' }, { id: nextId.current++, k: 'ui', ui: { component: 'Showcase', props: {} } }]);
     const shell = boot(content);
     setPrompt(shell.prompt());
     modeRef.current = 'idle';

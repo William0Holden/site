@@ -194,3 +194,18 @@ test('in the browser, overview commands show visual blocks; piped output stays t
 test('every project cover points at media that exists', () => {
   for (const p of content.projects) for (const id of p.media) assert.ok(content.media.some((m) => m.id === id), `${p.slug}: ${id}`);
 });
+
+test('gallery with no project shows every figure, grouped by project', async () => {
+  const { run, ui } = harness();
+  await run('gallery', true);
+  const galleries = ui.filter((u) => (u as { component?: string }).component === 'Gallery') as { props: { ids: string[] } }[];
+  const withMedia = content.projects.filter((p) => p.media.length);
+  assert.equal(galleries.length, withMedia.length);
+  assert.equal(galleries.flatMap((g) => g.props.ids).length, withMedia.reduce((n, p) => n + p.media.length, 0));
+});
+
+test('resume in the browser shows projects as an image grid', async () => {
+  const { run, ui } = harness();
+  await run('resume', true);
+  assert.ok(ui.some((u) => (u as { component?: string }).component === 'ProjectGrid'));
+});

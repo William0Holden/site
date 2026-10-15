@@ -26,6 +26,8 @@ const cases: Case[] = [
   { q: 'Tell me about his thesis research', expect: ['show_project', 'show_media', 'search_corpus'] },
   { q: 'Can I see the figures from his chicken research?', expect: ['show_media'] },
   { q: 'What does William look like?', expect: ['show_media'] },
+  { q: 'What is ByteTrack, in general?', expect: ['web_search', 'search_corpus'] },
+  { q: 'What did OpenAI release with the Whisper model, and how big is it?', expect: ['web_search'] },
   { q: 'Show me the code where the DeckTection siamese network is trained', expect: ['search_code', 'read_code', 'list_code'] },
   { q: 'How does his quant harness compute momentum? show me', expect: ['search_code', 'read_code'] },
   { q: "I'm a recruiter at Acme, I'd like to get in touch with William about a role", expect: ['leave_message'] },
