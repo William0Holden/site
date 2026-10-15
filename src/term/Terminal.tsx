@@ -285,6 +285,9 @@ export default function Terminal() {
   // ---- startup ----
   useEffect(() => {
     restoreTheme();
+    document.documentElement.dataset.ready = '1'; // tells the head safety net the app started
+    try { sessionStorage.removeItem('wholden-reloaded'); } catch { /* storage unavailable */ }
+    if (new URLSearchParams(location.search).has('_r')) { const u = new URL(location.href); u.searchParams.delete('_r'); history.replaceState(null, '', u); }
     // Every visit starts a fresh conversation; drop anything an older version saved.
     store.set(CHAT_STORE, '', session());
     fetch('/api/content.json').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); }).then(async (ct: Content) => {
