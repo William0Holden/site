@@ -5,7 +5,7 @@ export const WEB_SEARCH_TOOL = {
   function: {
     name: 'web_search',
     description:
-      "Search the public web when the site's own content (and search_corpus) can't answer: technologies, papers, companies, terms, recent public facts. Never use it to look up private information about William or any other person.",
+      "General web search (returns a short cited summary). Use for public facts the site can't answer: technologies, papers, models, companies, terms, recent public news. Never use it to look up private information about William or any other person.",
     parameters: { type: 'object', properties: { query: { type: 'string', description: 'A focused search query' } }, required: ['query'], additionalProperties: false },
   },
 };

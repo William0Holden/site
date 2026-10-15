@@ -7,7 +7,7 @@ period: Fall 2024
 stack: [React, Django, SQL]
 links:
   - { label: "Code", url: "https://github.com/William0Holden/cinema-ebooking" }
-media: []
+media: [cinema-home, cinema-seats, cinema-order]
 featured: false
 order: 5
 theme: { accent: "#ef4444", accent2: "#fbbf24", bg: "#120808", mood: "velvet curtain, marquee lights" }

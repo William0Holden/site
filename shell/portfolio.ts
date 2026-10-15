@@ -222,7 +222,14 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
             body.forEach((l, i) => out.push(`  ${i === 0 ? c(pad(k.area, aw), 'bold') : ' '.repeat(aw)}  ${l}`));
           }
           out.push('', rule(io, 'projects'));
-          for (const p of ct.projects.filter((x) => x.kind !== 'professional' && x.kind !== 'research')) {
+          if (io.isTTY) {
+            // In the browser the projects section is the image grid, shown after the text.
+            out.push(c('  click a project for details', 'gray'));
+            io.out(out.join('\n') + '\n');
+            out.length = 0;
+            show(io, { component: 'ProjectGrid', props: { slugs: ct.projects.filter((x) => x.kind !== 'professional' && x.kind !== 'research').map((x) => x.slug) } });
+          }
+          else for (const p of ct.projects.filter((x) => x.kind !== 'professional' && x.kind !== 'research')) {
             out.push(w < 64 ? `  ${projLink(io, p)}\n    ${p.title} ${c(p.period, 'gray')}` : `  ${pad(projLink(io, p), 22)} ${p.title} ${c(p.period, 'gray')}`);
           }
         }
@@ -287,11 +294,20 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
     },
 
     gallery: {
-      readonly: true, help: "show a project's figures and video",
+      readonly: true, help: "every figure and video, or one project's",
       run: (args, io) => {
         const p = args[0] ? findProject(ct, args[0]) : undefined;
-        const withMedia = ct.projects.filter((x) => x.media.length).map((x) => x.slug);
-        if (!p || !p.media.length) { io.err(`usage: gallery <${withMedia.join('|')}>\n`); return 1; }
+        const withMedia = ct.projects.filter((x) => x.media.length);
+        if (!args[0]) {
+          // Everything, grouped by project.
+          for (const x of withMedia) {
+            io.out(`\n${c(x.title, 'bold')} ${c(`${x.media.length} item${x.media.length > 1 ? 's' : ''} · ${io.isTTY ? cmdLink(`open ${x.slug}`) : `open ${x.slug}`}`, 'gray')}\n`);
+            show(io, { component: 'Gallery', props: { ids: x.media } });
+            if (!io.isTTY) for (const id of x.media) { const m = ct.media.find((y) => y.id === id); if (m) io.out(`  ${m.id}\t${m.title}\n`); }
+          }
+          return 0;
+        }
+        if (!p || !p.media.length) { io.err(`usage: gallery [${withMedia.map((x) => x.slug).join('|')}]\n`); return 1; }
         io.out(c(`${p.title}: ${p.media.length} items\n`, 'gray'));
         show(io, { component: 'Gallery', props: { ids: p.media } });
         if (!io.isTTY) for (const id of p.media) { const m = ct.media.find((x) => x.id === id); if (m) io.out(`${m.id}\t${m.title}\n`); }

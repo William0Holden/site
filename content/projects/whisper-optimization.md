@@ -8,7 +8,7 @@ role: ML Systems course project (CSCI 8000, University of Georgia), team project
 stack: [ONNX Runtime, PyTorch, Quantization]
 links:
   - { label: "Code (team repo)", url: "https://github.com/alexander-darwiche/CS8000-MLSys" }
-media: []
+media: [whisper-results-table, whisper-size-speed]
 featured: false
 order: 4
 theme: { accent: "#4fd1c5", accent2: "#a3e635", bg: "#06131a", mood: "cool, waveform, signal" }
