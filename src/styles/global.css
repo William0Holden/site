@@ -2,6 +2,7 @@
 @property --accent { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
 @property --accent2 { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
 @property --bg { syntax: '<color>'; inherits: true; initial-value: #000000; }
+@property --hue { syntax: '<number>'; inherits: true; initial-value: 150; }
 
 :root {
   --fg: #ffffff;
@@ -12,6 +13,8 @@
   --max: 68rem;
   color-scheme: dark;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* ANSI palette, shown from the "color" ambience up (term.css). */
+  --ansi-red: #ff5c57; --ansi-green: #5af78e; --ansi-yellow: #f3f99d; --ansi-blue: #57c7ff; --ansi-magenta: #ff6ac1; --ansi-cyan: #9aedfe;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
 }
 
@@ -20,7 +23,9 @@ html { background: var(--bg); transition: --accent 700ms ease, --accent2 700ms e
 body { margin: 0; min-height: 100dvh; color: var(--fg); background: var(--bg); line-height: 1.6; }
 html.js body:has(.term) { overflow: hidden; }
 html:not(.js) .term { display: none; }
-:root[data-theme='light'] { color-scheme: light; --surface: var(--bg); }
+:root[data-theme='light'] { color-scheme: light; --surface: var(--bg);
+  /* Darker variants keep 4.5:1 on white. */
+  --ansi-red: #c4302b; --ansi-green: #1a7f37; --ansi-yellow: #8a6d00; --ansi-blue: #0b62c9; --ansi-magenta: #b0337e; --ansi-cyan: #0e7490; }
 a { color: inherit; text-underline-offset: 3px; }
 a:hover { text-decoration-thickness: 2px; }
 img { max-width: 100%; height: auto; }

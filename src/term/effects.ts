@@ -97,8 +97,49 @@ export function chicken() {
   anim.onfinish = () => el.remove();
 }
 
-export function runEffect(effect: string, theme?: Theme & { name?: string }) {
+// Ambience: how alive the terminal looks. Each level adds to the one before; CSS keys off the
+// `amb-1..3` classes on <html> (phosphor glow, ANSI colour, background motion).
+export const AMBIENCE = ['plain', 'phosphor', 'color', 'alive'] as const;
+export type Ambience = (typeof AMBIENCE)[number];
+const AMB_KEY = 'wholden-ambience';
+const WOKE_KEY = 'wholden-woke';
+const isAmbience = (x: unknown): x is Ambience => AMBIENCE.includes(x as Ambience);
+let wakeTimers: ReturnType<typeof setTimeout>[] = [];
+
+export function setAmbience(level: Ambience, remember = false) {
+  const root = document.documentElement;
+  const n = AMBIENCE.indexOf(level);
+  root.dataset.ambience = level;
+  for (let i = 1; i < AMBIENCE.length; i++) root.classList.toggle(`amb-${i}`, i <= n);
+  if (remember) { wakeTimers.forEach(clearTimeout); wakeTimers = []; endWake(); try { localStorage.setItem(AMB_KEY, level); } catch { /* storage unavailable */ } }
+}
+export function endWake() { delete document.documentElement.dataset.wake; }
+
+// First visit: the page boots as a plain tty and comes alive alongside the welcome text. Later
+// visits open at the saved level (or alive). Reduced motion skips the sequence and the motion.
+export function wakeUp(force = false) {
+  let saved: string | null = null, woke: string | null = null;
+  try { saved = localStorage.getItem(AMB_KEY); woke = localStorage.getItem(WOKE_KEY); } catch { /* storage unavailable */ }
+  if (force) { try { localStorage.removeItem(AMB_KEY); } catch { /* storage unavailable */ } }
+  else if (isAmbience(saved)) return setAmbience(saved);
+  if (reduced()) return setAmbience('color');
+  if (woke && !force) return setAmbience('alive');
+  try { localStorage.setItem(WOKE_KEY, '1'); } catch { /* storage unavailable */ }
+  wakeTimers.forEach(clearTimeout);
+  document.documentElement.dataset.wake = '';
+  setAmbience('plain');
+  wakeTimers = [
+    setTimeout(() => setAmbience('phosphor'), 2600),
+    setTimeout(() => setAmbience('color'), 4400),
+    setTimeout(() => setAmbience('alive'), 6200),
+    setTimeout(endWake, 8000),
+  ];
+}
+
+export function runEffect({ effect, theme, level }: { effect: string; theme?: Theme & { name?: string }; level?: unknown }) {
   if (effect === 'confetti') confetti();
+  else if (effect === 'ambience' && level === 'wake') wakeUp(true);
+  else if (effect === 'ambience' && isAmbience(level)) setAmbience(level, true);
   else if (effect === 'matrix') matrix();
   else if (effect === 'chicken') chicken();
   else if (effect === 'konami') { confetti(); chicken(); }
