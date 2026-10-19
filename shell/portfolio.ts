@@ -1,6 +1,6 @@
 // William's content as a Linux filesystem, plus the portfolio commands (resume, skills, timeline,
 // open, fit, ask, ...). Everything here is derived from the public content export.
-import { c, cmdLink, link, mdToAnsi, pad, visibleLength, wrap } from './ansi.ts';
+import { c, cmdLink, type Color, link, mdToAnsi, pad, visibleLength, wrap } from './ansi.ts';
 import { dir, file, type DirNode, type Node } from './vfs.ts';
 import { getopt } from './coreutils.ts';
 import type { Command, IO } from './sh.ts';
@@ -42,16 +42,16 @@ const bibtex = (ct: Content) => (ct.site.publications ?? []).map((p) => {
 // Sample questions on the welcome screen. Clicking one asks the assistant, so the terminal allows
 // exactly these strings as links even though `ask` isn't a read-only command.
 export const SUGGESTED_QUESTIONS = ['ask what was his thesis about?', 'ask what does he build at work?'];
-const chip = (cmd: string) => cmdLink(c(`[ ${cmd} ]`, 'bold'), cmd);
+const chip = (cmd: string, color: Color) => cmdLink(c(`[ ${cmd} ]`, 'bold', color), cmd);
 export const MOTD = [
   "hello, i'm william. AI engineer in Atlanta.",
   '',
   'this is a terminal with an AI assistant built in.',
   '',
-  `  ${chip('resume')}  ${chip('projects')}  ${chip('contact')}`,
+  `  ${chip('resume', 'yellow')}  ${chip('projects', 'magenta')}  ${chip('contact', 'cyan')}`,
   '',
   '  or ask the AI anything, in plain English:',
-  ...SUGGESTED_QUESTIONS.map((q) => `  › ${cmdLink(q.slice(4), q)}`),
+  ...SUGGESTED_QUESTIONS.map((q) => `  ${c('›', 'green')} ${cmdLink(q.slice(4), q)}`),
   '',
   c('  click anything underlined, or type below.', 'gray'),
   c(`  it's a real shell, too: ${cmdLink('help')}, ls, man, boot.`, 'gray'),
@@ -576,6 +576,18 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
         if (!n || !names.includes(n)) { io.out(`usage: theme <${names.join('|')}>\n`); return n ? 1 : 0; }
         io.sh.host.ui?.({ effect: 'theme', theme: { name: n } });
         io.out(c(`theme: ${n}\n`, 'gray'));
+        return 0;
+      },
+    },
+
+    ambience: {
+      readonly: true, help: 'how alive the terminal looks: plain, phosphor, color, alive (or wake to replay)',
+      run: (args, io) => {
+        const levels = ['plain', 'phosphor', 'color', 'alive', 'wake'];
+        const n = args[0];
+        if (!n || !levels.includes(n)) { io.out(`usage: ambience <${levels.join('|')}>\n`); return n ? 1 : 0; }
+        io.sh.host.ui?.({ effect: 'ambience', level: n as 'wake' });
+        io.out(c(`ambience: ${n}\n`, 'gray'));
         return 0;
       },
     },
