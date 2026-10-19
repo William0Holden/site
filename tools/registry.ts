@@ -33,6 +33,7 @@ export type PersonalEntry = { slug: string; title: string; tier: 'personal' | 'g
 export type UiAction =
   | { component: 'CodeBlock' | 'Sources' | 'MessageForm' | 'OnePager' | 'ProfileHeader' | 'ProjectGrid' | 'Timeline' | 'SkillMap' | 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun'; props: object }
   | { effect: 'theme'; theme: { name: string } }
+  | { effect: 'ambience'; level: 'plain' | 'phosphor' | 'color' | 'alive' | 'wake' }
   | { effect: 'confetti' | 'chicken' | 'matrix' | 'konami' };
 
 export type Ctx = {
@@ -325,6 +326,15 @@ tools.push(
     visibility: 'hidden', tier: 'public', surfaces: ['chat'],
     async handler({ name }) {
       return { text: `Theme set to ${name}.`, ui: { effect: 'theme', theme: { name } } };
+    },
+  }),
+  tool({
+    name: 'ambience',
+    description: 'Change how alive the terminal looks: plain (bare monochrome tty), phosphor (soft CRT glow), color (ANSI colours), or alive (the default: colours plus a drifting background, scan beam and shifting cursor). Use when the visitor asks to calm it down, turn effects off, make it plain or retro, or liven it up.',
+    input: z.object({ level: z.enum(['plain', 'phosphor', 'color', 'alive']) }),
+    visibility: 'hidden', tier: 'public', surfaces: ['chat'],
+    async handler({ level }) {
+      return { text: `Ambience set to ${level}.`, ui: { effect: 'ambience', level } };
     },
   }),
   tool({

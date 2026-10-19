@@ -7,7 +7,7 @@ import type { Content } from '../../tools/registry';
 import { Ansi } from './Ansi';
 import { ProgramView } from './programs';
 import { RunContext, UiBlock } from './blocks';
-import { restoreTheme, runEffect } from './effects';
+import { endWake, restoreTheme, runEffect, wakeUp } from './effects';
 import { askAssistant, chatStatus, TOOL_LABELS, ERRORS, type ChatMsg, type ChatEvent } from './ai';
 import './term.css';
 
@@ -41,6 +41,26 @@ export const isSafeCmd = (shell: Shell, cmd: string) => {
   const name = c0.split(' ')[0];
   return c0.length < 120 && !/[;&|<>$`\\\x00-\x1f]/.test(c0) && !NOT_CLICKABLE.has(name) && Boolean(shell.commands[name]?.readonly);
 };
+// Block-letter name over the welcome text, and the dim glyph field that drifts behind the
+// terminal at the "alive" ambience. Both are decoration only (aria-hidden).
+const BANNER = [
+  '█   █  ███  █     █     ███   ██   █   █',
+  '█   █   █   █     █      █   █  █  ██ ██',
+  '█ █ █   █   █     █      █   ████  █ █ █',
+  '██ ██   █   █     █      █   █  █  █   █',
+  '█   █  ███  ████  ████  ███  █  █  █   █',
+].join('\n');
+const FIELD = (() => {
+  const glyphs = '              ..·:·.    +    *    01   ~   ';
+  let seed = 0x2f6b;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const rows = Array.from({ length: 48 }, () => Array.from({ length: 220 }, () => glyphs[Math.floor(rnd() * glyphs.length)]).join(''));
+  return [...rows, ...rows].join('\n'); // two copies, so drifting up by half loops seamlessly
+})();
+// Featured-work tiles and the touch key row wait until the visitor does something (or a while
+// passes), so the first screen is just the welcome text and a prompt.
+const REVEAL_AFTER_MS = 25000;
+
 const safeCommandSet = (shell: Shell) => (safeCache ??= new Set(Object.entries(shell.commands).filter(([, v]) => v.readonly).map(([k]) => k)));
 
 export default function Terminal() {
@@ -54,6 +74,8 @@ export default function Terminal() {
   const [search, setSearch] = useState<{ q: string; idx: number } | null>(null);
   const [content, setContent] = useState<Content | null>(null);
   const [touched, setTouched] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setRevealed(true), REVEAL_AFTER_MS); return () => clearTimeout(t); }, []);
 
   const sh = useRef<Shell | null>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
@@ -134,7 +156,7 @@ export default function Terminal() {
     // The assistant's run_shell calls replay here, in a read-only sandbox, as if typed.
     const runSandbox = async (command: string) => {
       if (!content) return;
-      const box = createShell(content, { cols: () => cols.current, now: () => Date.now(), ui: (u) => ('component' in u ? pushUi(u as Ui) : runEffect((u as { effect: string }).effect, (u as { theme?: object }).theme)) }, { readonly: true });
+      const box = createShell(content, { cols: () => cols.current, now: () => Date.now(), ui: (u) => ('component' in u ? pushUi(u as Ui) : runEffect(u as { effect: string })) }, { readonly: true });
       // Replayed output may only carry the shell's own links: drop any cmd: hyperlink it didn't make safe.
       const out = write;
       out(`${c('$', 'gray')} ${c(clean(command), 'bold')}\n`);
@@ -176,7 +198,7 @@ export default function Terminal() {
             aiId = null;
             if (d.component === 'ShellRun' && typeof (d.props as { command?: unknown })?.command === 'string') await runSandbox((d.props as { command: string }).command).catch((err) => write(c(`bash: ${(err as Error).message}\n`, 'red')));
             else if (typeof d.component === 'string') pushUi(d as Ui);
-            else if (typeof d.effect === 'string') runEffect(d.effect, d.theme as object | undefined);
+            else if (typeof d.effect === 'string') runEffect(d as { effect: string });
           } else if (e.type === 'error') write(c(`ask: ${e.message}\n`, 'red'));
     }
   }, [content, pushUi, write]);
@@ -186,7 +208,7 @@ export default function Terminal() {
     cols: () => cols.current,
     rows: () => Math.floor((screen.current?.clientHeight ?? 600) / 20),
     now: () => Date.now(),
-    ui: (u) => { if ('component' in u) pushUi(u as Ui); else runEffect((u as { effect: string }).effect, (u as { theme?: object }).theme); },
+    ui: (u) => { if ('component' in u) pushUi(u as Ui); else runEffect(u as { effect: string }); },
     program: (spec, signal) => new Promise((resolve) => {
       flush();
       const done = (r: { code: number; text?: string }) => { setProgram(null); setMode('running'); resolve(r); requestAnimationFrame(() => ta.current?.focus()); };
@@ -242,6 +264,8 @@ export default function Terminal() {
       if (failed) { write(`bash: !${failed}: event not found\n`); setMode('idle'); return; }
       write(line + '\n');
     }
+    setRevealed(true);
+    endWake();
     if (!line.startsWith(' ') && shell.history[shell.history.length - 1] !== line) shell.history.push(line);
     histIdx.current = null;
     persist();
@@ -285,6 +309,7 @@ export default function Terminal() {
   // ---- startup ----
   useEffect(() => {
     restoreTheme();
+    wakeUp();
     document.documentElement.dataset.ready = '1'; // tells the head safety net the app started
     try { sessionStorage.removeItem('wholden-reloaded'); } catch { /* storage unavailable */ }
     if (new URLSearchParams(location.search).has('_r')) { const u = new URL(location.href); u.searchParams.delete('_r'); history.replaceState(null, '', u); }
@@ -478,17 +503,23 @@ export default function Terminal() {
   return (
     <RunContext.Provider value={runCommand}>
       {/* Portalled overlays (the lightbox) bubble React clicks here too; only real terminal clicks focus the prompt. */}
-      <div className="term" onClick={(e) => { if (e.currentTarget.contains(e.target as Node) && !(e.target as Element).closest('input, textarea, select, label, [data-nofocus]')) focus(); }}>
+      <div className="term" onKeyDown={endWake} onClick={(e) => { if (e.currentTarget.contains(e.target as Node) && !(e.target as Element).closest('input, textarea, select, label, [data-nofocus]')) focus(); }}>
+        <div className="amb" aria-hidden="true"><pre className="amb-field">{FIELD}</pre></div>
+        <div className="amb-crt" aria-hidden="true" />
+        <div className="amb-beam" aria-hidden="true" />
         <div className="term-bar" aria-label="Status">
           <span>wholden.com <span className="term-bar-dim">· terminal + AI assistant</span></span>
-          <span className="term-bar-ai" data-state={aiState}>{aiState === 'online' ? '● AI assistant online' : aiState === 'resting' ? '○ AI resting · commands work' : aiState === 'offline' ? '○ AI offline · commands work' : '○ AI'}</span>
+          <span className="term-bar-ai" data-state={aiState}>{aiState === 'online' ? <><span className="term-bar-dot" aria-hidden="true">●</span> AI assistant online</> : aiState === 'resting' ? '○ AI resting · commands work' : aiState === 'offline' ? '○ AI offline · commands work' : '○ AI'}</span>
         </div>
         <span ref={measure} className="term-measure" aria-hidden="true">MMMMMMMMMM</span>
         <div className="term-screen" ref={screen} role="log" aria-live="polite" aria-label="Terminal output"
           onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
+          {entries[0]?.k === 'text' && entries[0].text === MOTD + '\n' && (
+            <div className="term-banner" aria-hidden="true"><div><pre>{BANNER}</pre></div></div>
+          )}
           {entries.map((e) => (
-            e.k === 'text' ? <pre key={e.id} className="term-text"><Ansi text={e.text} onCommand={runCommand} allowCmd={allowCmd} /></pre>
-              : e.k === 'ui' ? <div key={e.id} className="term-ui"><UiBlock content={content} ui={e.ui} /></div>
+            e.k === 'text' ? <pre key={e.id} className={e.text === MOTD + '\n' ? 'term-text term-motd' : 'term-text'}><Ansi text={e.text} onCommand={runCommand} allowCmd={allowCmd} /></pre>
+              : e.k === 'ui' ? (e.ui.component === 'Showcase' && !revealed ? null : <div key={e.id} className="term-ui"><UiBlock content={content} ui={e.ui} /></div>)
                 : <div key={e.id} className="term-ai"><span className="term-ai-label" aria-hidden="true">AI assistant</span><pre className="term-text"><Ansi text={mdToAnsi(stripNotes(e.text), safeCmds)} onCommand={runCommand} allowCmd={allowCmd} />{e.note && <span className="term-note"><span className="spin" aria-hidden="true" /> {e.note}…</span>}</pre></div>
           ))}
           {showInput && (
@@ -512,7 +543,7 @@ export default function Terminal() {
           {mode === 'loading' && <pre className="term-text"><span className="term-note"><span className="spin" aria-hidden="true" /> starting…</span></pre>}
         </div>
         {program && <ProgramView spec={program.spec} onExit={program.resolve} />}
-        {coarse && showInput && !program && (
+        {coarse && revealed && showInput && !program && (
           <div className="term-keys" aria-label="Terminal keys">
             <button type="button" {...tap(complete)}>tab</button>
             <button type="button" {...tap(() => histMove(-1))}>↑</button>

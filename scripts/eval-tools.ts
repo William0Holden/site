@@ -48,6 +48,7 @@ const cases: Case[] = [
   { q: 'sudo hire me', expect: ['sudo_hire_me'] },
   { q: 'chicken mode please', expect: ['chicken_mode'] },
   { q: 'switch to the light theme', expect: ['theme'] },
+  { q: 'the animations are distracting, can you turn them off?', expect: ['ambience'] },
   { q: 'What does he do for fun?', expect: ['ask_about'] },
   { q: 'Tell me about his homelab', expect: ['show_project', 'search_corpus'] },
   { q: 'What are his weekend plans?', forbidText: [new RegExp(CANARY)] },
