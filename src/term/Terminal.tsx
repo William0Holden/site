@@ -12,7 +12,7 @@ import { askAssistant, chatStatus, TOOL_LABELS, ERRORS, type ChatMsg, type ChatE
 import './term.css';
 
 type Ui = { component: string; props: Record<string, unknown> };
-type Entry = { id: number; k: 'text'; text: string } | { id: number; k: 'ui'; ui: Ui } | { id: number; k: 'ai'; text: string; note?: string };
+type Entry = { id: number; k: 'text'; text: string } | { id: number; k: 'ui'; ui: Ui } | { id: number; k: 'ai'; text: string; note?: string } | { id: number; k: 'mark' };
 type Mode = 'loading' | 'idle' | 'running' | 'readline' | 'program' | 'exited';
 
 const STORE = 'wholden-sh-v1';
@@ -60,6 +60,9 @@ const FIELD = (() => {
 // Featured-work tiles and the touch key row wait until the visitor does something (or a while
 // passes), so the first screen is just the welcome text and a prompt.
 const REVEAL_AFTER_MS = 25000;
+// On touch screens focusing the prompt opens the on-screen keyboard, so only a tap on the prompt
+// line (or a command that needs input) may focus it. Taps on links and tiles leave it closed.
+const isTouch = () => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 
 const safeCommandSet = (shell: Shell) => (safeCache ??= new Set(Object.entries(shell.commands).filter(([, v]) => v.readonly).map(([k]) => k)));
 
@@ -75,6 +78,9 @@ export default function Terminal() {
   const [content, setContent] = useState<Content | null>(null);
   const [touched, setTouched] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [touch, setTouch] = useState(false); // set after mount so the server render matches
+  const [typing, setTyping] = useState(false); // prompt focused (on touch: keyboard open)
+  useEffect(() => setTouch(isTouch()), []);
   useEffect(() => { const t = setTimeout(() => setRevealed(true), REVEAL_AFTER_MS); return () => clearTimeout(t); }, []);
   // The welcome screen sits centred until the visitor starts typing or runs something; then it
   // glides to the top-left like a normal terminal (FLIP: measure, switch layout, animate the gap).
@@ -235,7 +241,7 @@ export default function Terminal() {
     ui: (u) => { if ('component' in u) pushUi(u as Ui); else runEffect(u as { effect: string }); },
     program: (spec, signal) => new Promise((resolve) => {
       flush();
-      const done = (r: { code: number; text?: string }) => { setProgram(null); setMode('running'); resolve(r); requestAnimationFrame(() => ta.current?.focus()); };
+      const done = (r: { code: number; text?: string }) => { setProgram(null); setMode('running'); resolve(r); if (!isTouch()) requestAnimationFrame(() => ta.current?.focus()); };
       signal.addEventListener('abort', () => done({ code: 130 }), { once: true });
       setProgram({ spec, resolve: done });
       setMode('program');
@@ -327,8 +333,18 @@ export default function Terminal() {
   const runCommand = useCallback((cmd: string) => {
     if (modeRef.current !== 'idle') return;
     setInput(''); setCaret(0);
+    if (!isTouch()) { execute(cmd); ta.current?.focus({ preventScroll: true }); return; }
+    // Touch: close the keyboard, and scroll the tapped command to the top so its result reads
+    // from the start instead of leaving the reader at the bottom of a long block.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const id = nextId.current++;
+    queue.current.push({ id, k: 'mark' });
+    stick.current = false;
     execute(cmd);
-    ta.current?.focus({ preventScroll: true });
+    setTimeout(() => {
+      const el = screen.current?.querySelector<HTMLElement>(`[data-mark="${id}"]`);
+      if (el && screen.current) screen.current.scrollTo({ top: Math.max(0, el.offsetTop - 8), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }, 120);
   }, [execute]);
 
   // ---- startup ----
@@ -519,7 +535,7 @@ export default function Terminal() {
   };
 
   const focus = () => { if (!getSelection()?.toString()) ta.current?.focus({ preventScroll: true }); };
-  const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+  const coarse = touch;
   const tap = (fn: () => void) => ({ onPointerDown: (e: React.PointerEvent) => { e.preventDefault(); fn(); ta.current?.focus({ preventScroll: true }); } });
   const showInput = mode === 'idle' || mode === 'readline' || mode === 'exited';
   const linePrompt = readline ? readline.prompt : mode === 'exited' ? '' : prompt;
@@ -530,7 +546,11 @@ export default function Terminal() {
   return (
     <RunContext.Provider value={runCommand}>
       {/* Portalled overlays (the lightbox) bubble React clicks here too; only real terminal clicks focus the prompt. */}
-      <div className="term" onKeyDown={(e) => { endWake(); if (!['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) leaveHero(); }} onClick={(e) => { if (e.currentTarget.contains(e.target as Node) && !(e.target as Element).closest('input, textarea, select, label, [data-nofocus]')) focus(); }}>
+      <div className="term" onKeyDown={(e) => { endWake(); if (!['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) leaveHero(); }} onClick={(e) => {
+        const t = e.target as Element;
+        if (!e.currentTarget.contains(t) || t.closest('input, textarea, select, label, [data-nofocus]')) return;
+        if (!touch || t.closest('.term-line')) focus();
+      }}>
         <div className="amb" aria-hidden="true"><pre className="amb-field">{FIELD}</pre></div>
         <div className="amb-crt" aria-hidden="true" />
         <div className="amb-beam" aria-hidden="true" />
@@ -546,7 +566,8 @@ export default function Terminal() {
             <div className="term-banner" aria-hidden="true"><div><pre>{BANNER}</pre><pre className="term-banner-color">{BANNER}</pre></div></div>
           )}
           {entries.map((e) => (
-            e.k === 'text' ? <pre key={e.id} className={e.text === MOTD + '\n' ? 'term-text term-motd' : 'term-text'}><Ansi text={e.text} onCommand={runCommand} allowCmd={allowCmd} /></pre>
+            e.k === 'mark' ? <span key={e.id} className="term-mark" data-mark={e.id} aria-hidden="true" />
+              : e.k === 'text' ? <pre key={e.id} className={e.text === MOTD + '\n' ? 'term-text term-motd' : 'term-text'}><Ansi text={e.text} onCommand={runCommand} allowCmd={allowCmd} /></pre>
               : e.k === 'ui' ? (e.ui.component === 'Showcase' && !revealed ? null : <div key={e.id} className="term-ui"><UiBlock content={content} ui={e.ui} /></div>)
                 : <div key={e.id} className="term-ai"><span className="term-ai-label" aria-hidden="true">AI assistant</span><pre className="term-text"><Ansi text={mdToAnsi(stripNotes(e.text), safeCmds)} onCommand={runCommand} allowCmd={allowCmd} />{e.note && <span className="term-note"><span className="spin" aria-hidden="true" /> {e.note}…</span>}</pre></div>
           ))}
@@ -558,10 +579,11 @@ export default function Terminal() {
                 <pre className="term-text">
                   <Ansi text={linePrompt} />
                   <span className="term-input">{input.slice(0, caret)}<span className={`cursor${mode === 'exited' ? ' cursor-dim' : ''}`}>{input[caret] && input[caret] !== '\n' ? input[caret] : ' '}</span>{input[caret] === '\n' ? '\n' : ''}{input.slice(caret + 1)}</span>
-                  {!touched && !input && mode === 'idle' && h.length === 0 && <span className="term-ghost">ask the AI anything, or type a command</span>}
+                  {!touched && !input && mode === 'idle' && h.length === 0 && <span className="term-ghost">{touch && !typing ? 'tap here to type or ask the AI' : 'ask the AI anything, or type a command'}</span>}
                 </pre>
               )}
-              <textarea ref={ta} className="term-ta" value={input} rows={1} aria-label={readline ? 'Input' : 'Command line'} autoFocus
+              <textarea ref={ta} className="term-ta" value={input} rows={1} aria-label={readline ? 'Input' : 'Command line'} autoFocus={!touch || Boolean(readline)}
+                onFocus={() => setTyping(true)} onBlur={() => setTyping(false)}
                 autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="go"
                 onChange={(e) => { setInput(e.target.value); setCaret(e.target.selectionStart); histIdx.current = null; }}
                 onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
@@ -572,7 +594,7 @@ export default function Terminal() {
           </div>
         </div>
         {program && <ProgramView spec={program.spec} onExit={program.resolve} />}
-        {coarse && revealed && showInput && !program && (
+        {coarse && typing && showInput && !program && (
           <div className="term-keys" aria-label="Terminal keys">
             <button type="button" {...tap(complete)}>tab</button>
             <button type="button" {...tap(() => histMove(-1))}>↑</button>
