@@ -28,4 +28,5 @@ Personal site for William O. Holden. Full spec and current status: `docs/HANDOFF
 (`dist/api/content.json`). `shell/` is the shell (shared by the browser and the Worker's `run_shell`);
 `src/term/` is the terminal UI (one page, `src/pages/index.astro`). `worker/` routes curl, `/api/*`,
 `/mcp`, old-URL redirects, then static assets. Tests: `npm test`; AI eval: `node scripts/eval-tools.ts`.
-Deploys: Cloudflare Workers Builds from `main`. Fetch and rebase before pushing.
+Deploys: Cloudflare Workers Builds from `main` (every merge deploys). Builds use only what's in git, and
+`content/personal/` is untracked, so auto-deploys ship no personal entries. Fetch and rebase before pushing.
