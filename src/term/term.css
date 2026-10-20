@@ -310,7 +310,17 @@ button.tl-card:hover .tl-img { filter: none; }
 
 /* First visit (html[data-wake]): the welcome text arrives line by line, then the prompt. */
 html[data-wake] .term-motd { animation: motd-in 2.2s steps(14, end) .15s both; }
-html[data-wake] .term-screen > .term-line { animation: motd-prompt .3s ease 2.4s both; }
+html[data-wake] .term-flow > .term-line { animation: motd-prompt .3s ease 2.4s both; }
 @keyframes motd-in { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0); } }
 @keyframes motd-prompt { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .amb-beam { display: none; } }
+
+/* Welcome screen: one left-aligned block, centred on the page until the visitor types
+   (Terminal.tsx leaveHero), then at the top-left like a normal terminal.
+   Auto margins centre vertically without clipping when the content outgrows the screen. */
+.term-flow { display: flex; flex-direction: column; min-height: 100%; }
+.term-flow[data-hero] { width: max-content; max-width: 100%; margin-inline: auto; }
+.term-flow[data-hero] > :first-child { margin-top: auto; }
+.term-flow[data-hero] > :last-child { margin-bottom: auto; }
+/* The tile strip fills the block's width instead of widening it. */
+.term-flow[data-hero] > .term-ui:has(.sc) { width: 0; min-width: 100%; }

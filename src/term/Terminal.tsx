@@ -76,6 +76,30 @@ export default function Terminal() {
   const [touched, setTouched] = useState(false);
   const [revealed, setRevealed] = useState(false);
   useEffect(() => { const t = setTimeout(() => setRevealed(true), REVEAL_AFTER_MS); return () => clearTimeout(t); }, []);
+  // The welcome screen sits centred until the visitor starts typing or runs something; then it
+  // glides to the top-left like a normal terminal (FLIP: measure, switch layout, animate the gap).
+  const [hero, setHero] = useState(true);
+  const heroRef = useRef(true);
+  const flow = useRef<HTMLDivElement>(null);
+  const heroRects = useRef<Map<Element, DOMRect> | null>(null);
+  const leaveHero = useCallback(() => {
+    if (!heroRef.current) return;
+    heroRef.current = false;
+    heroRects.current = new Map([...(flow.current?.children ?? [])].map((el) => [el, el.getBoundingClientRect()]));
+    setHero(false);
+  }, []);
+  useLayoutEffect(() => {
+    const before = heroRects.current;
+    heroRects.current = null;
+    if (hero || !before || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    for (const [el, r] of before) {
+      if (!el.isConnected) continue;
+      const now = el.getBoundingClientRect();
+      const dx = r.left - now.left, dy = r.top - now.top;
+      if (Math.abs(dx) + Math.abs(dy) < 1) continue;
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 520, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    }
+  }, [hero]);
 
   const sh = useRef<Shell | null>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
@@ -266,6 +290,7 @@ export default function Terminal() {
     }
     setRevealed(true);
     endWake();
+    leaveHero();
     if (!line.startsWith(' ') && shell.history[shell.history.length - 1] !== line) shell.history.push(line);
     histIdx.current = null;
     persist();
@@ -485,6 +510,8 @@ export default function Terminal() {
   const restart = () => {
     if (!content) return;
     setEntries([{ id: nextId.current++, k: 'text', text: MOTD + '\n' }, { id: nextId.current++, k: 'ui', ui: { component: 'Showcase', props: {} } }]);
+    heroRef.current = true;
+    setHero(true);
     const shell = boot(content);
     setPrompt(shell.prompt());
     modeRef.current = 'idle';
@@ -503,7 +530,7 @@ export default function Terminal() {
   return (
     <RunContext.Provider value={runCommand}>
       {/* Portalled overlays (the lightbox) bubble React clicks here too; only real terminal clicks focus the prompt. */}
-      <div className="term" onKeyDown={endWake} onClick={(e) => { if (e.currentTarget.contains(e.target as Node) && !(e.target as Element).closest('input, textarea, select, label, [data-nofocus]')) focus(); }}>
+      <div className="term" onKeyDown={(e) => { endWake(); if (!['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) leaveHero(); }} onClick={(e) => { if (e.currentTarget.contains(e.target as Node) && !(e.target as Element).closest('input, textarea, select, label, [data-nofocus]')) focus(); }}>
         <div className="amb" aria-hidden="true"><pre className="amb-field">{FIELD}</pre></div>
         <div className="amb-crt" aria-hidden="true" />
         <div className="amb-beam" aria-hidden="true" />
@@ -514,6 +541,7 @@ export default function Terminal() {
         <span ref={measure} className="term-measure" aria-hidden="true">MMMMMMMMMM</span>
         <div className="term-screen" ref={screen} role="log" aria-live="polite" aria-label="Terminal output"
           onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
+          <div className="term-flow" ref={flow} data-hero={hero ? '' : undefined}>
           {entries[0]?.k === 'text' && entries[0].text === MOTD + '\n' && (
             <div className="term-banner" aria-hidden="true"><div><pre>{BANNER}</pre><pre className="term-banner-color">{BANNER}</pre></div></div>
           )}
@@ -541,6 +569,7 @@ export default function Terminal() {
             </div>
           )}
           {mode === 'loading' && <pre className="term-text"><span className="term-note"><span className="spin" aria-hidden="true" /> starting…</span></pre>}
+          </div>
         </div>
         {program && <ProgramView spec={program.spec} onExit={program.resolve} />}
         {coarse && revealed && showInput && !program && (
