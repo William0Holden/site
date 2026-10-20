@@ -515,7 +515,7 @@ export default function Terminal() {
         <div className="term-screen" ref={screen} role="log" aria-live="polite" aria-label="Terminal output"
           onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
           {entries[0]?.k === 'text' && entries[0].text === MOTD + '\n' && (
-            <div className="term-banner" aria-hidden="true"><div><pre>{BANNER}</pre></div></div>
+            <div className="term-banner" aria-hidden="true"><div><pre>{BANNER}</pre><pre className="term-banner-color">{BANNER}</pre></div></div>
           )}
           {entries.map((e) => (
             e.k === 'text' ? <pre key={e.id} className={e.text === MOTD + '\n' ? 'term-text term-motd' : 'term-text'}><Ansi text={e.text} onCommand={runCommand} allowCmd={allowCmd} /></pre>
