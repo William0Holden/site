@@ -300,8 +300,10 @@ button.tl-card:hover .tl-img { filter: none; }
 .amb-3 .term-banner-color { animation: amb-lol 16s linear infinite; }
 .amb-3:not([data-theme='light']) .term-line:focus-within .cursor { background: hsl(var(--hue) 95% 70%); box-shadow: 0 0 14px hsl(var(--hue) 95% 60% / .7); animation: blink 1.1s steps(1) infinite, amb-hue 16s linear infinite; }
 .amb-3 .term-bar-ai[data-state='online'] .term-bar-dot { display: inline-block; animation: amb-pulse 1.8s ease-in-out infinite; }
-.amb-3:not([data-theme='light']) .term a.cmdlink:hover { color: var(--bg); background: var(--ansi-green); text-shadow: none; text-decoration: none; }
-.amb-3:not([data-theme='light']) .term a.cmdlink:hover span { color: inherit; }
+@media (hover: hover) {
+  .amb-3:not([data-theme='light']) .term a.cmdlink:hover { color: var(--bg); background: var(--ansi-green); text-shadow: none; text-decoration: none; }
+  .amb-3:not([data-theme='light']) .term a.cmdlink:hover span { color: inherit; }
+}
 @keyframes amb-drift { to { transform: translateY(-50%); } }
 @keyframes amb-scan { from { transform: translateY(-140px); } to { transform: translateY(var(--vvh, 100dvh)); } }
 @keyframes amb-lol { to { background-position: -80ch 0; } }
@@ -324,3 +326,13 @@ html[data-wake] .term-flow > .term-line { animation: motd-prompt .3s ease 2.4s b
 .term-flow[data-hero] > :last-child { margin-bottom: auto; }
 /* The tile strip fills the block's width instead of widening it. */
 .term-flow[data-hero] > .term-ui:has(.sc) { width: 0; min-width: 100%; }
+
+/* Touch: bigger tap targets without changing the text layout, no sticky hover lift, and a prompt
+   line that is easy to hit (it is the only thing that opens the keyboard). */
+@media (pointer: coarse) {
+  .term { -webkit-tap-highlight-color: transparent; }
+  .term a { padding-block: .45em; }
+  .term a:active { background: color-mix(in oklab, var(--fg), transparent 85%); }
+  .term-line { min-height: 44px; }
+  .sc-item:hover, .pg-card:hover { transform: none; }
+}
