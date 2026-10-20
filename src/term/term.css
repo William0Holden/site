@@ -2,7 +2,7 @@
 .term {
   --pad-x: max(clamp(12px, 2.5vw, 40px), env(safe-area-inset-left), env(safe-area-inset-right));
   position: fixed; top: var(--vvt, 0px); left: 0; right: 0; height: var(--vvh, 100dvh); display: flex; flex-direction: column; background: var(--bg); color: var(--fg);
-  font-family: var(--mono); font-size: clamp(13px, 0.42vw + 10px, 20px); line-height: 1.5; cursor: text;
+  font-family: var(--mono); font-size: clamp(13px, 0.42vw + 10px, 24px); line-height: 1.5; cursor: text;
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
 }
 .term-bar { display: flex; justify-content: space-between; gap: 1ch; padding: max(6px, env(safe-area-inset-top)) var(--pad-x) 6px; border-bottom: 1px solid var(--border); font-size: .85em; white-space: nowrap; overflow: hidden; }
@@ -261,7 +261,7 @@ button.tl-card:hover .tl-img { filter: none; }
 .term-text span[class], .term-bar, .term-bar-ai { transition: color .9s ease, border-color .9s ease; }
 .amb, .amb-crt, .amb-beam { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.4s ease; }
 .amb { z-index: 0; overflow: hidden; }
-.amb-field { margin: 0; font: inherit; font-size: 12px; line-height: 1.6; white-space: pre; color: color-mix(in oklab, var(--fg), transparent 93%); will-change: transform; }
+.amb-field { position: absolute; inset: 0 0 auto; height: calc(100% + 768px); background-repeat: repeat; will-change: transform; }
 .amb-crt { z-index: 2; background: repeating-linear-gradient(0deg, color-mix(in oklab, var(--fg), transparent 96.5%) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / .5) 100%); }
 .amb-beam { z-index: 2; bottom: auto; height: 140px; background: linear-gradient(180deg, transparent, color-mix(in oklab, var(--fg), transparent 95.5%), transparent); }
 :root[data-theme='light'] :is(.amb, .amb-crt, .amb-beam) { display: none; }
@@ -304,7 +304,7 @@ button.tl-card:hover .tl-img { filter: none; }
   .amb-3:not([data-theme='light']) .term a.cmdlink:hover { color: var(--bg); background: var(--ansi-green); text-shadow: none; text-decoration: none; }
   .amb-3:not([data-theme='light']) .term a.cmdlink:hover span { color: inherit; }
 }
-@keyframes amb-drift { to { transform: translateY(-50%); } }
+@keyframes amb-drift { to { transform: translateY(-768px); } }
 @keyframes amb-scan { from { transform: translateY(-140px); } to { transform: translateY(var(--vvh, 100dvh)); } }
 @keyframes amb-lol { to { background-position: -80ch 0; } }
 @keyframes amb-hue { to { --hue: 510; } }
@@ -320,8 +320,8 @@ html[data-wake] .term-flow > .term-line { animation: motd-prompt .3s ease 2.4s b
 /* Welcome screen: one left-aligned block, centred on the page until the visitor types
    (Terminal.tsx leaveHero), then at the top-left like a normal terminal.
    Auto margins centre vertically without clipping when the content outgrows the screen. */
-.term-flow { display: flex; flex-direction: column; min-height: 100%; }
-.term-flow[data-hero] { width: max-content; max-width: 100%; margin-inline: auto; }
+.term-flow { display: flex; flex-direction: column; min-height: 100%; width: 100%; max-width: min(100%, var(--col)); margin-inline: auto; }
+.term-flow[data-hero] { width: max-content; }
 .term-flow[data-hero] > :first-child { margin-top: auto; }
 .term-flow[data-hero] > :last-child { margin-bottom: auto; }
 /* The tile strip fills the block's width instead of widening it. */
@@ -336,3 +336,8 @@ html[data-wake] .term-flow > .term-line { animation: motd-prompt .3s ease 2.4s b
   .term-line { min-height: 44px; }
   .sc-item:hover, .pg-card:hover { transform: none; }
 }
+
+/* Wide screens: the terminal reads as a centred column (about 130 characters) instead of running
+   from the far-left edge; the status bar lines up with it. */
+.term { --col: 78em; }
+.term-bar { padding-inline: max(var(--pad-x), calc((100% - var(--col) / .85) / 2)); }
