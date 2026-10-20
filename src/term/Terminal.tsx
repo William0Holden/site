@@ -50,12 +50,19 @@ const BANNER = [
   '██ ██   █   █     █      █   █  █  █   █',
   '█   █  ███  ████  ████  ███  █  █  █   █',
 ].join('\n');
+// The field is one SVG tile repeated as a background, so it covers any screen size; it drifts up
+// by exactly one tile height (FIELD_TILE_H, mirrored in term.css) so the loop is seamless.
+const FIELD_TILE_H = 768;
 const FIELD = (() => {
   const glyphs = '              ..·:·.    +    *    01   ~   ';
   let seed = 0x2f6b;
   const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
-  const rows = Array.from({ length: 48 }, () => Array.from({ length: 220 }, () => glyphs[Math.floor(rnd() * glyphs.length)]).join(''));
-  return [...rows, ...rows].join('\n'); // two copies, so drifting up by half loops seamlessly
+  const rows = Array.from({ length: 40 }, (_, r) => {
+    const line = Array.from({ length: 160 }, () => glyphs[Math.floor(rnd() * glyphs.length)]).join('');
+    return `<text x="0" y="${(r * 19.2 + 14).toFixed(1)}" xml:space="preserve">${line}</text>`;
+  });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1152" height="${FIELD_TILE_H}" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="12" fill="#fff" fill-opacity=".07">${rows.join('')}</svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 })();
 // Featured-work tiles and the touch key row wait until the visitor does something (or a while
 // passes), so the first screen is just the welcome text and a prompt.
@@ -551,7 +558,7 @@ export default function Terminal() {
         if (!e.currentTarget.contains(t) || t.closest('input, textarea, select, label, [data-nofocus]')) return;
         if (!touch || t.closest('.term-line')) focus();
       }}>
-        <div className="amb" aria-hidden="true"><pre className="amb-field">{FIELD}</pre></div>
+        <div className="amb" aria-hidden="true"><div className="amb-field" style={{ backgroundImage: FIELD }} /></div>
         <div className="amb-crt" aria-hidden="true" />
         <div className="amb-beam" aria-hidden="true" />
         <div className="term-bar" aria-label="Status">
