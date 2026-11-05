@@ -12,6 +12,13 @@ media: [mt-comet-scores]
 featured: false
 order: 7
 theme: { accent: "#5eead4", accent2: "#f0abfc", bg: "#08110f", mood: "bilingual, ink and paper" }
+blurb: "Korean to English benchmark against a published human translation."
+headline: "15 systems"
+stats:
+  - { label: "DeepL COMET", value: "86.46", ratio: 0.8646 }
+  - { label: "DeepSeek COMET", value: "86.10", ratio: 0.861 }
+  - { label: "Claude chrF2", value: "57.35", ratio: 0.5735 }
+  - { label: "Claude BLEU", value: "30.29", ratio: 0.3029 }
 ---
 
 - Ran a professional Korean→English translation workflow in memoQ (translation memories,

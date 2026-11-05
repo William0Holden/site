@@ -11,6 +11,12 @@ media: [first-build-2020]
 featured: false
 order: 9
 theme: { accent: "#22d3ee", accent2: "#818cf8", bg: "#05080d", mood: "server-rack LEDs at night" }
+blurb: "Self-hosted media, cloud, and local AI, operated through custom MCP servers."
+headline: "~48 TB"
+stats:
+  - { label: "storage pool", value: "~48 TB" }
+  - { label: "watchdogs", value: "~30" }
+  - { label: "running since", value: "Dec 2020" }
 ---
 
 It started in December 2020 as an open-bench build on a cardboard box. Today it's a small,

@@ -141,3 +141,31 @@ test('the site-wide daily message cap holds across many visitors', () => {
   for (let i = 0; i < 40; i++) if (core.claimMessage([`v${i}`, `s:${i}`], 3, 25)) ok++;
   assert.equal(ok, 25);
 });
+
+test('presentation data: tours and stats only reference real media, and tours cover well-illustrated projects', () => {
+  for (const p of content.projects) {
+    for (const s of p.tour ?? []) assert.ok(content.media.some((m) => m.id === s.media && p.media.includes(m.id)), `${p.slug}: ${s.media}`);
+    for (const s of p.stats ?? []) if (s.ratio !== undefined) assert.ok(s.ratio >= 0 && s.ratio <= 1, `${p.slug}: ${s.label}`);
+    if (p.media.length >= 3) assert.ok(p.tour?.length, `${p.slug} has ${p.media.length} figures but no tour`);
+  }
+  const aderant = content.projects.find((p) => p.slug === 'aderant')!;
+  assert.deepEqual([aderant.stats?.length ?? 0, aderant.tour?.length ?? 0, aderant.compare, aderant.headline], [0, 0, undefined, undefined]);
+});
+
+test('present_tour and show_stats return typed blocks looked up by slug', async () => {
+  const tour = await run('present_tour', { slug: 'broiler-behavior' });
+  assert.deepEqual(tour.ui, { component: 'Tour', props: { slug: 'broiler-behavior' } });
+  assert.match(tour.text, /6 steps/);
+  assert.equal((await run('present_tour', { slug: 'aderant' })).ui, undefined);
+  const stats = await run('show_stats', { slug: 'whisper-optimization' });
+  assert.deepEqual(stats.ui, { component: 'StatsReadout', props: { slug: 'whisper-optimization' } });
+  assert.match(stats.text, /339 MB/);
+  assert.equal((await run('show_stats', { slug: 'aderant' })).ui, undefined);
+});
+
+test('show_media carries the note through, and rejects an overlong one', async () => {
+  const one = await run('show_media', { ids: ['confusion-matrix'], note: 'Look at the diagonal.' });
+  assert.deepEqual(one.ui, { component: 'MediaViewer', props: { id: 'confusion-matrix', note: 'Look at the diagonal.' } });
+  const showMedia = tools.find((t) => t.name === 'show_media')!;
+  assert.equal(showMedia.input.safeParse({ ids: ['confusion-matrix'], note: 'x'.repeat(141) }).success, false);
+});
