@@ -96,6 +96,7 @@ export function buildTree(ct: Content, commandNames: string[], now: number): Dir
     'skills.txt': f(skills),
     projects: dir(W, projects, t),
     experience: dir(W, experience, t),
+    work: dir(W, { aderant: dir(W, { details: file(W, '', { denied: true, size: 0 }, t) }, t) }, t),
     publications: dir(W, { 'holden2026-compag.bib': f(bibtex(ct)) }, t),
     '.plan': f(`${ct.site.role} at Aderant. ${ct.projects.find((p) => p.slug === 'aderant')?.summary ?? ''}\nReach me: ${email(ct)}\n`),
     '.bashrc': f(`# ~/.bashrc for william\nalias ll='ls -alF'\nalias gs='git status'\nalias hire='sudo hire-me'\n`),
@@ -169,7 +170,7 @@ export function timelineItems(ct: Content): TimelineItem[] {
     if (p.kind === 'professional' || p.kind === 'research') continue;
     const y = p.period.match(/\d{4}/)?.[0];
     if (!y) continue;
-    const season = /spring|feb|jan|mar/i.test(p.period) ? '-03' : /fall|sep|oct|nov/i.test(p.period) ? '-09' : /jun|jul|aug|summer/i.test(p.period) ? '-06' : '';
+    const season = /spring|feb|jan|mar/i.test(p.period) ? '-03' : /^dec/i.test(p.period) ? '-12' : /fall|sep|oct|nov/i.test(p.period) ? '-09' : /jun|jul|aug|summer/i.test(p.period) ? '-06' : '';
     items.push({ start: y + season, label: p.title, detail: p.period, kind: p.kind === 'homelab' ? 'lab' : 'project', slug: p.slug });
   }
   for (const pub of ct.site.publications ?? []) { const y = pub.cite.match(/\((\d{4})\)/)?.[1]; if (y) items.push({ start: y, label: 'Publication: Computers and Electronics in Agriculture', detail: y, kind: 'pub', slug: pub.project }); }
@@ -287,8 +288,22 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
         io.out(`\n${c(p.title, 'bold')} ${c(p.period, 'gray')}\n${p.role ? c(wrap(p.role, w), 'yellow') + '\n' : ''}\n${wrap(mdToAnsi(plainMd(p.body)), w)}\n${meta}`);
         show(io, { component: 'ProjectCard', props: { slug: p.slug } });
         if (p.media.length && io.isTTY) {
-          io.out(`${c(`${p.media.length} media file${p.media.length > 1 ? 's' : ''}:`, 'gray')} ${cmdLink(c(`gallery ${p.slug}`, 'cyan'), `gallery ${p.slug}`)}\n`);
+          const tour = p.tour?.length ? ` ${c('·', 'gray')} ${cmdLink(c(`tour ${p.slug}`, 'cyan'), `tour ${p.slug}`)}` : '';
+          io.out(`${c(`${p.media.length} media file${p.media.length > 1 ? 's' : ''}:`, 'gray')} ${cmdLink(c(`gallery ${p.slug}`, 'cyan'), `gallery ${p.slug}`)}${tour}\n`);
         }
+        return 0;
+      },
+    },
+
+    tour: {
+      readonly: true, help: 'walk through a project step by step',
+      man: 'tour <project>\n\n  tour broiler-behavior',
+      run: (args, io) => {
+        const withTour = ct.projects.filter((p) => p.tour?.length);
+        const p = args[0] ? findProject(ct, args[0]) : undefined;
+        if (!p?.tour?.length) { io.err(`usage: tour <project>. available: ${withTour.map((x) => x.slug).join(', ')}\n`); return 1; }
+        if (io.isTTY) { show(io, { component: 'Tour', props: { slug: p.slug } }); return 0; }
+        io.out(p.tour.map((s, i) => `${i + 1}. ${s.title}\n${wrap(s.text, W(io), '   ')}`).join('\n') + '\n');
         return 0;
       },
     },
@@ -685,7 +700,7 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
           return `${c(title, 'bold')}\n${rows.join('\n')}`;
         };
         io.out(['',
-          group('about william', ['resume', 'projects', 'open', 'skills', 'timeline', 'gallery', 'contact', 'neofetch']),
+          group('about william', ['resume', 'projects', 'open', 'tour', 'skills', 'timeline', 'gallery', 'contact', 'neofetch']),
           group('ai', ['ask', 'chat', 'fit']),
           group('shell', ['ls', 'cd', 'cat', 'less', 'grep', 'find', 'tree', 'nano', 'vim', 'man', 'history', 'top', 'curl', 'git']),
           group('extras', ['boot', 'theme', 'cowsay', 'fortune']),

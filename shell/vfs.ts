@@ -2,7 +2,7 @@
 // only /home/guest and /tmp are writable, and /home/guest can be persisted by the host.
 export type FileNode = {
   kind: 'file'; data: string | (() => string); owner: string; mtime: number;
-  size?: number; media?: string; mime?: string; exec?: boolean;
+  size?: number; media?: string; mime?: string; exec?: boolean; denied?: boolean;
 };
 export type DirNode = { kind: 'dir'; children: Record<string, Node>; owner: string; mtime: number };
 export type Node = FileNode | DirNode;
@@ -57,6 +57,7 @@ export class VFS {
     const n = this.stat(abs);
     if (!n) throw new FsError('ENOENT');
     if (n.kind === 'dir') throw new FsError('EISDIR');
+    if (n.kind === 'file' && n.denied) throw new FsError('EACCES');
     return readData(n);
   }
 
