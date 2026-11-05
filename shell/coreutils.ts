@@ -169,6 +169,7 @@ export const coreutils: Record<string, Command> = {
         const n = io.sh.fs.stat(io.sh.resolve(p));
         if (!n) { io.err(`cat: ${p}: No such file or directory\n`); code = 1; continue; }
         if (n.kind === 'dir') { io.err(`cat: ${p}: Is a directory\n`); code = 1; continue; }
+        if (n.denied) { io.err(`cat: ${p}: Permission denied (the specifics are internal)\n`); code = 1; continue; }
         if (n.media || n.mime === 'binary') {
           if (io.isTTY) { io.err(`cat: ${p}: binary file (${n.mime ?? 'data'}); try: ${cmdLink('open ' + p)}\n`); code = 1; continue; }
           text += `\u0089PNG\u001a\n\u0000\u0000binary\u0000`; continue;
