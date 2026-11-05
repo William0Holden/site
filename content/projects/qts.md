@@ -12,6 +12,12 @@ media: [qts-signal-ic]
 featured: false
 order: 8
 theme: { accent: "#4ade80", accent2: "#facc15", bg: "#07100a", mood: "terminal green, ticker tape" }
+blurb: "Point-in-time equities research with LLM-scored sentiment."
+headline: "4.3M bars"
+stats:
+  - { label: "price bars", value: "4.3M" }
+  - { label: "signal providers", value: "11" }
+  - { label: "verdict", value: "research harness, not a proven edge" }
 ---
 
 - Point-in-time DuckDB store for the S&P 500 without survivorship bias (4.3M price bars).

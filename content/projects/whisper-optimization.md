@@ -12,6 +12,16 @@ media: [whisper-results-table, whisper-size-speed]
 featured: false
 order: 4
 theme: { accent: "#4fd1c5", accent2: "#a3e635", bg: "#06131a", mood: "cool, waveform, signal" }
+blurb: "INT8 quantization and Winograd convolution for mobile speech recognition."
+headline: "88 MB encoder"
+stats:
+  - { label: "Winograd compression", value: "60%", ratio: 0.6 }
+  - { label: "average WER", value: "17-18%, unchanged" }
+compare:
+  title: "encoder size, lower is better"
+  rows:
+    - { label: "FP32", value: 339, unit: "MB" }
+    - { label: "INT8", value: 88, unit: "MB" }
 ---
 
 - Quantized the Whisper encoder to INT8, cutting model size **70%** with no material

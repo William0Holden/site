@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createShell, isCommandLine, looksLikeQuestion, looksLikeSentence, MOTD, SUGGESTED_QUESTIONS, type Host, type IO, type Shell } from '../../shell/index';
 import type { Program } from '../../shell/sh';
-import { c, mdToAnsi, stripAnsi, columns } from '../../shell/ansi';
+import { FOLLOW_UP, c, mdToAnsi, stripAnsi, columns } from '../../shell/ansi';
 import type { Content } from '../../tools/registry';
 import { Ansi } from './Ansi';
 import { ProgramView } from './programs';
@@ -22,7 +22,7 @@ const stripNotes = (s: string) => s.replace(/\[tools used:[^\]\n]*\]?/gi, '').re
 const MAX_ENTRIES = 1500;
 const MAX_CHAT_TURNS = 10;
 // Commands a link (/?cmd=...) may run on load: read-only, no redirection or chaining.
-const DEEPLINK = /^(?:(resume|projects|open|skills|timeline|gallery|contact|help|neofetch|ls|tree|man|play)( [\w.~ -]{0,60})?|fit)$/;
+const DEEPLINK = /^(?:(resume|projects|open|tour|skills|timeline|gallery|contact|help|neofetch|ls|tree|man|play)( [\w.~ -]{0,60})?|fit)$/;
 
 const store = {
   get: (k: string, s: Storage | undefined) => { try { return s?.getItem(k) ?? null; } catch { return null; } },
@@ -228,7 +228,13 @@ export default function Terminal() {
     async function apply(e: ChatEvent) {
           if (e.type === 'text') { const id = aiId ?? startAi(); patchAi(id, (x) => ({ ...x, text: x.text + clean(e.t), note: undefined })); }
           else if (e.type === 'note') { const id = aiId ?? startAi(); patchAi(id, (x) => ({ ...x, note: e.message })); }
-          else if (e.type === 'tool' && !e.hidden) { const id = aiId ?? startAi(); patchAi(id, (x) => ({ ...x, note: TOOL_LABELS[e.name] ?? 'working' })); }
+          else if (e.type === 'tool' && !e.hidden) {
+            // Leave a trace of each step in the scrollback, then keep the spinner below it.
+            const label = TOOL_LABELS[e.name] ?? 'working';
+            if (aiId !== null) { const id = aiId; setEntries((prev) => prev.filter((x) => x.id !== id || (x.k === 'ai' && x.text))); aiId = null; }
+            write(`${c('●', 'green')} ${c(label, 'gray')}\n`);
+            startAi(label);
+          }
           else if (e.type === 'ui') {
             const d = e.data;
             if (aiId !== null) patchAi(aiId, (x) => ({ ...x, note: undefined }));
@@ -313,7 +319,7 @@ export default function Terminal() {
     const io = ioFor(ctl.signal);
     let code = 0;
     try {
-      if (looksLikeSentence(line) && !shell.aliases[line.trim().split(/\s/)[0]]) code = await ask(line.trim(), io);
+      if (looksLikeSentence(line) && !shell.aliases[line.trim().split(/\s/)[0]]) code = await ask(line.trim().replace(/^ask\s+/i, ''), io);
       else if (!isCommandLine(shell, line)) {
         if (looksLikeQuestion(line)) code = await ask(line.trim(), io);
         else {
@@ -548,7 +554,7 @@ export default function Terminal() {
   const linePrompt = readline ? readline.prompt : mode === 'exited' ? '' : prompt;
   const h = sh.current?.history ?? [];
   const safeCmds = sh.current ? safeCommandSet(sh.current) : undefined;
-  const allowCmd = (cmd: string) => SUGGESTED_QUESTIONS.includes(cmd) || (sh.current ? isSafeCmd(sh.current, cmd) : /^(resume|projects|contact|help)$/.test(cmd));
+  const allowCmd = (cmd: string) => SUGGESTED_QUESTIONS.includes(cmd) || (cmd.startsWith('ask ') && FOLLOW_UP.test(cmd.slice(4))) || (sh.current ? isSafeCmd(sh.current, cmd) : /^(resume|projects|contact|help)$/.test(cmd));
 
   return (
     <RunContext.Provider value={runCommand}>
@@ -556,6 +562,8 @@ export default function Terminal() {
       <div className="term" onKeyDown={(e) => { endWake(); if (!['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) leaveHero(); }} onClick={(e) => {
         const t = e.target as Element;
         if (!e.currentTarget.contains(t) || t.closest('input, textarea, select, label, [data-nofocus]')) return;
+        // Keyboard activation inside a block keeps focus there; a pointer click returns to the prompt.
+        if (e.detail === 0 && t.closest('[data-keyfocus]')) return;
         if (!touch || t.closest('.term-line')) focus();
       }}>
         <div className="amb" aria-hidden="true"><div className="amb-field" style={{ backgroundImage: FIELD }} /></div>

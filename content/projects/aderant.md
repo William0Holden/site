@@ -11,6 +11,7 @@ media: []
 featured: true
 order: 1
 theme: { accent: "#7aa2ff", accent2: "#b48cff", bg: "#0b0f1a", mood: "calm, precise, legal-tech blue" }
+blurb: "Internal AI applications for the teams behind Aderant's legal software."
 ---
 
 <!-- CONFIDENTIAL: William wants Aderant work kept vague everywhere public. This page may say only

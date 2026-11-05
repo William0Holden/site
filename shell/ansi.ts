@@ -29,8 +29,8 @@ export function wrap(text: string, width: number, indent = ''): string {
 // With `commands`, inline code whose first word is in the set becomes a clickable command.
 // Joins hard-wrapped prose lines so text re-wraps to the screen. Lists, headings, tables, quotes,
 // indented lines and fenced code keep their line breaks.
-const BLOCK_START = /^(\s|[-*+•>|#]|\d+[.)]\s|```)/;
-const LIST_ITEM = /^\s*([-*+•]|\d+[.)])\s/;
+const BLOCK_START = /^(\s|[-*+•›>|#]|\d+[.)]\s|```)/;
+const LIST_ITEM = /^\s*([-*+•›]|\d+[.)])\s/;
 export function reflow(md: string): string {
   return md.split(/(```[\s\S]*?(?:```|$))/).map((part, i) => {
     if (i % 2) return part;
@@ -52,6 +52,9 @@ export function reflow(md: string): string {
   }).join('');
 }
 
+// Follow-ups run through the shell, so no quotes, globs beyond ?, or operators.
+export const FOLLOW_UP = /^\w[\w ,.?-]{2,79}$/;
+
 export function mdToAnsi(md: string, commands?: Set<string>): string {
   const code = (t: string) => (commands && t.length < 80 && !/[>;&|`$]/.test(t) && commands.has(t.split(' ')[0]) ? cmdLink(c(t, 'cyan'), t) : c(t, 'cyan'));
   return reflow(md.replace(/\r/g, ''))
@@ -60,7 +63,9 @@ export function mdToAnsi(md: string, commands?: Set<string>): string {
     .replace(/\*\*([^*\n]+)\*\*/g, (_m, t) => c(t, 'bold'))
     .replace(/(^|[^*\w])\*([^*\s][^*\n]*)\*/g, (_m, pre, t) => pre + c(t, 'italic'))
     .replace(/`([^`\n]+)`/g, (_m, t) => code(t))
-    .replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (_m, t, u) => (/^(https?:|mailto:)/.test(u) ? link(c(t, 'underline'), u) : u.startsWith('/') ? link(c(t, 'underline'), u) : t));
+    .replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (_m, t, u) => (/^(https?:|mailto:)/.test(u) ? link(c(t, 'underline'), u) : u.startsWith('/') ? link(c(t, 'underline'), u) : t))
+    // A follow-up: "› plain question" asks the assistant when clicked; a backticked command was linked above.
+    .replace(/^› (.+)$/gm, (_m, t) => `${c('›', 'green')} ${commands && FOLLOW_UP.test(t) ? cmdLink(t, `ask ${t}`) : t}`);
 }
 
 // Format names into columns the way `ls` does on a terminal of `width` columns.
