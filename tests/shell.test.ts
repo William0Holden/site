@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createShell, runReadonly, MOTD, SUGGESTED_QUESTIONS, isCommandLine, looksLikeQuestion, looksLikeSentence } from '../shell/index.ts';
-import { stripAnsi, reflow } from '../shell/ansi.ts';
+import { stripAnsi, reflow, mdToAnsi, FOLLOW_UP } from '../shell/ansi.ts';
 import type { Host, IO } from '../shell/sh.ts';
 import type { Content } from '../tools/registry.ts';
 
@@ -209,3 +209,34 @@ test('resume in the browser shows projects as an image grid', async () => {
   await run('resume', true);
   assert.ok(ui.some((u) => (u as { component?: string }).component === 'ProjectGrid'));
 });
+
+test('tour: opens the block in a browser, prints text when piped, and refuses projects without one', async () => {
+  const { run, ui } = harness();
+  await run('tour decktection', true);
+  assert.deepEqual(ui.at(-1), { component: 'Tour', props: { slug: 'decktection' } });
+  assert.match((await run('tour decktection', false)).out, /Find every card/);
+  assert.notEqual((await run('tour aderant', true)).code, 0);
+});
+
+test('aderant details are off limits to the shell and to the read-only AI sandbox', async () => {
+  const { run } = harness();
+  const r = await run('cat ~william/work/aderant/details', true);
+  assert.notEqual(r.code, 0);
+  assert.match(r.out + r.err, /Permission denied/);
+  assert.match((await runReadonly(content, 'cat ~william/work/aderant/details')).text, /Permission denied/);
+  assert.equal((await run('grep -ril . ~william/work', false)).out, '');
+  assert.notEqual((await run('head ~william/work/aderant/details', true)).code, 0);
+});
+
+test('follow-ups: plain questions link to ask, anything shell-like stays plain text', () => {
+  const md = mdToAnsi('Done.\n› what else has he built?\n› rm -rf; echo hi\n› `tour decktection`', new Set(['tour']));
+  assert.ok(md.includes('cmd:ask what else has he built?'));
+  assert.ok(!md.includes('cmd:ask rm'));
+  assert.ok(md.includes('cmd:tour decktection'));
+  assert.equal(stripAnsi(md).split('\n').length, 4);
+  assert.ok(mdToAnsi('› who advised him', new Set(['who'])).includes('cmd:ask who advised him'));
+  assert.equal(FOLLOW_UP.test('--reset'), false);
+  assert.equal(FOLLOW_UP.test("what's next"), false);
+  assert.ok(!mdToAnsi('› what else?').includes('cmd:'));
+});
+

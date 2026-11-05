@@ -12,6 +12,8 @@ media: [bitebutler-data-flow]
 featured: false
 order: 10
 theme: { accent: "#fb923c", accent2: "#f472b6", bg: "#140b07", mood: "late-night food run" }
+blurb: "Hackathon app: swipe on nearby restaurants to pick dinner."
+headline: "one weekend"
 ---
 
 - iOS app built in a weekend: swipe through nearby restaurants pulled from the Yelp,

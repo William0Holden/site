@@ -5,9 +5,13 @@ import { bm25, chunksFor, findFile, findRepo, readLines, searchCode, sourceLabel
 import { z } from 'zod';
 
 export type Link = { label: string; url: string };
+export type Stat = { label: string; value: string; ratio?: number };
+export type Compare = { title: string; rows: { label: string; value: number; unit: string }[] };
+export type TourStep = { tab: string; title: string; text: string; note: string; media: string };
 export type Project = {
   title: string; slug: string; kind: string; summary: string; period: string; role?: string;
   stack: string[]; links: Link[]; liveUrl?: string; media: string[]; body: string;
+  blurb?: string; headline?: string; stats?: Stat[]; compare?: Compare; tour?: TourStep[];
 };
 export type Experience = { org: string; title: string; period: string; start?: string; end?: string; place?: string; project?: string; summary?: string };
 export type Site = {
@@ -31,7 +35,7 @@ export type Media = {
 export type PersonalEntry = { slug: string; title: string; tier: 'personal' | 'gated'; tags: string[]; body: string };
 
 export type UiAction =
-  | { component: 'CodeBlock' | 'Sources' | 'MessageForm' | 'OnePager' | 'ProfileHeader' | 'ProjectGrid' | 'Timeline' | 'SkillMap' | 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun'; props: object }
+  | { component: 'CodeBlock' | 'Sources' | 'MessageForm' | 'OnePager' | 'ProfileHeader' | 'ProjectGrid' | 'Timeline' | 'SkillMap' | 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun' | 'StatsReadout' | 'Tour'; props: object }
   | { effect: 'theme'; theme: { name: string } }
   | { effect: 'ambience'; level: 'plain' | 'phosphor' | 'color' | 'alive' | 'wake' }
   | { effect: 'confetti' | 'chicken' | 'matrix' | 'konami' };
@@ -199,16 +203,44 @@ tools.push(
       ids: z.array(z.string().regex(/^[a-z0-9-]{1,64}$/i)).max(6).optional().describe('Media ids from the catalog, most relevant first'),
       project: z.string().regex(/^[a-z0-9-]{1,64}$/i).optional(),
       id: z.string().regex(/^[a-z0-9-]{1,64}$/i).optional(),
+      note: z.string().max(140).optional().describe('One short sentence telling the visitor what to look at. Only facts from the catalog or profile.'),
     }),
     visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
-    async handler({ ids, project, id }, ctx) {
+    async handler({ ids, project, id, note }, ctx) {
       const picked = ids?.length ? ids : id ? [id] : [];
       const items = (picked.length ? mediaFor(ctx, picked) : project ? (findProject(ctx, project)?.media ?? []).map((m) => mediaFor(ctx, [m])[0]).filter(Boolean) : [])
         .filter((m) => m.type === 'image' || m.type === 'video');
       if (!items.length) return { text: `No media found${project ? ` for "${project}"` : ''}. Projects with media: ${ctx.content.projects.filter((p) => p.media.length).map((p) => p.slug).join(', ') || 'none'}.` };
       return {
         text: `Showing ${items.length} item(s): ` + items.map((m) => `${m.title} (${m.caption})`).join('; '),
-        ui: items.length === 1 ? { component: 'MediaViewer', props: { id: items[0].id } } : { component: 'Gallery', props: { ids: items.map((m) => m.id) } },
+        ui: items.length === 1 ? { component: 'MediaViewer', props: { id: items[0].id, note } } : { component: 'Gallery', props: { ids: items.map((m) => m.id), note } },
+      };
+    },
+  }),
+  tool({
+    name: 'show_stats',
+    description: "Show a project's key results as a terminal readout with bars. Numbers come from the site's content, never from you.",
+    input: z.object({ slug: z.string().regex(/^[a-z0-9-]{1,64}$/i) }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
+    async handler({ slug }, ctx) {
+      const p = findProject(ctx, slug);
+      if (!p?.stats?.length && !p?.compare) return { text: `No stats for "${slug}". Projects with stats: ${ctx.content.projects.filter((x) => x.stats?.length || x.compare).map((x) => x.slug).join(', ')}.` };
+      const lines = (p.stats ?? []).map((s) => `${s.label}: ${s.value}`);
+      if (p.compare) lines.push(`${p.compare.title}: ${p.compare.rows.map((r) => `${r.label} ${r.value} ${r.unit}`).join(', ')}`);
+      return { text: `Readout shown to the visitor for ${p.title}: ${lines.join('; ')}.`, ui: { component: 'StatsReadout', props: { slug: p.slug } } };
+    },
+  }),
+  tool({
+    name: 'present_tour',
+    description: 'Walk the visitor through a project step by step: a split pane with narration beside real figures, which they click through.',
+    input: z.object({ slug: z.string().regex(/^[a-z0-9-]{1,64}$/i) }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
+    async handler({ slug }, ctx) {
+      const p = findProject(ctx, slug);
+      if (!p?.tour?.length) return { text: `No tour for "${slug}". Projects with tours: ${ctx.content.projects.filter((x) => x.tour?.length).map((x) => x.slug).join(', ')}.` };
+      return {
+        text: `Tour of ${p.title} shown to the visitor, ${p.tour.length} steps: ${p.tour.map((s, i) => `${i + 1}. ${s.title}: ${s.text}`).join(' ')}`,
+        ui: { component: 'Tour', props: { slug: p.slug } },
       };
     },
   }),
