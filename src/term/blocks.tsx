@@ -77,7 +77,9 @@ function Lightbox({ items, start, onClose }: { items: Media[]; start: number; on
   );
 }
 
-function MediaGrid({ items, single }: { items: Media[]; single?: boolean }) {
+const fileName = (m: Media) => (m.url ?? m.src).split('/').pop();
+
+function MediaGrid({ items, single, note }: { items: Media[]; single?: boolean; note?: string }) {
   const [open, setOpen] = useState<number | null>(null);
   const close = useCallback(() => setOpen(null), []);
   return (
@@ -85,6 +87,7 @@ function MediaGrid({ items, single }: { items: Media[]; single?: boolean }) {
       <div className={single ? 'cm-gallery cm-single' : 'cm-gallery'}>
         {items.map((m, k) => (
           <figure key={m.id} className="cm-figure" style={{ '--i': k } as CSSProperties}>
+            {note !== undefined && <span className="cm-fig-head">{fileName(m)}</span>}
             {m.type === 'video'
               ? <video src={m.url} poster={m.poster} controls muted loop playsInline preload="metadata" aria-label={m.alt} />
               : <button type="button" className="cm-zoom" onClick={(e) => { e.stopPropagation(); setOpen(k); }} aria-label={`View ${m.title} full screen`}><img src={m.url} alt={m.alt} loading="lazy" /></button>}
@@ -92,6 +95,7 @@ function MediaGrid({ items, single }: { items: Media[]; single?: boolean }) {
           </figure>
         ))}
       </div>
+      {note && <p className="cm-note"><span aria-hidden="true">▲ </span>{note}</p>}
       {open !== null && <Lightbox items={items} start={open} onClose={close} />}
     </>
   );
@@ -105,22 +109,6 @@ const mediaOf = (content: Content, p: Project) => p.media.map((id) => content.me
 function coverOf(content: Content, p: Project): string | undefined {
   const ms = mediaOf(content, p);
   return ms.find((m) => m.type === 'image')?.url ?? ms.find((m) => m.poster)?.poster;
-}
-
-// A project's cover: its own figure when it has one, otherwise a typographic plate built from its title.
-function Cover({ content, p }: { content: Content; p: Project }) {
-  const src = coverOf(content, p);
-  // Charts and diagrams (PNG) are shown whole; photos fill the frame.
-  if (src) return <span className="cv cv-img"><img src={src} alt="" loading="lazy" className={/\.png$/i.test(src) ? 'cv-fit' : undefined} /></span>;
-  const stack = p.stack.slice(0, 6);
-  return (
-    <span className="cv cv-type" aria-hidden="true">
-      <span className="cv-cmd"><span className="cv-dim">$</span> tree ~/projects/{p.slug}</span>
-      <span className="cv-tree">
-        {stack.map((x, i) => <span key={x}><span className="cv-dim">{i === stack.length - 1 ? '└── ' : '├── '}</span>{x}</span>)}
-      </span>
-    </span>
-  );
 }
 
 // Welcome strip: William's photo and the projects that have figures, each a click away.
@@ -152,8 +140,13 @@ function ProfileHeader({ content }: Props) {
       <img className="pf-photo" src="/media/headshot-480.jpg" alt={`Photo of ${s.name}`} width={480} height={480} />
       <div className="pf-body">
         <span className="pf-name">{s.name}</span>
-        <span className="pf-role">{s.role} · {s.location}</span>
-        <span className="cm-muted">{s.tagline}</span>
+        <span className="pf-rule" aria-hidden="true">{'-'.repeat(Math.min(s.name.length, 24))}</span>
+        <dl className="pf-kv">
+          {[['role', s.role], ['location', s.location], ['focus', s.tagline],
+            ['education', s.education?.[0] && `${s.education[0].degree}, ${s.education[0].school}`],
+            ['award', s.awards?.[0]]].filter(([, v]) => v).map(([k, v]) => <div key={k}><dt className="c33 b">{k}</dt><dd>{v}</dd></div>)}
+        </dl>
+        <span className="pf-swatch" aria-hidden="true">{[31, 33, 32, 36, 34, 35].map((n) => <i key={n} className={`c${n}`} />)}</span>
         <span className="pf-links">
           {s.links.map((l) => (
             <a key={l.url} className="cm-btn" href={l.url} target={l.url.startsWith('mailto:') ? undefined : '_blank'} rel="noopener">
@@ -168,21 +161,153 @@ function ProfileHeader({ content }: Props) {
   );
 }
 
+// A project's bullet points from its markdown body, as plain text.
+const bulletsOf = (p: Project) => p.body.split(/\n(?=- )/).filter((l) => l.startsWith('- ')).map((l) => l.slice(2).split('\n\n')[0].replace(/\s+/g, ' ').replace(/\*\*/g, '').trim()).slice(0, 5);
+
 function ProjectGrid({ content, props }: Props) {
   const run = useContext(RunContext);
   const slugs = Array.isArray(props.slugs) ? (props.slugs as unknown[]).map(String) : content.projects.map((p) => p.slug);
   const list = slugs.map((sl) => content.projects.find((p) => p.slug === sl)).filter((p): p is Project => Boolean(p)).slice(0, 24);
+  const [open, setOpen] = useState<string | null>(null);
   return (
-    <div className="pg">
-      {list.map((p, k) => (
-        <button type="button" key={p.slug} className="pg-card" style={delay(k)} onClick={() => run(`open ${p.slug}`)} aria-label={`Open ${p.title}`}>
-          <Cover content={content} p={p} />
-          <span className="pg-meta"><span>{p.kind.replace('-', ' ')}</span><span>{p.period}</span></span>
-          <strong className="pg-title">{p.title}</strong>
-          <span className="pg-sum">{p.summary}</span>
-          <span className="pg-stack">{p.stack.slice(0, 4).join(' · ')}</span>
-        </button>
+    <div className="ls" data-keyfocus>
+      <p className="ls-total">total {list.length}</p>
+      {list.map((p, k) => {
+        const on = open === p.slug;
+        const fig = mediaOf(content, p).find((m) => m.type === 'image');
+        const cover = coverOf(content, p);
+        const points = bulletsOf(p);
+        return (
+          <div className="ls-item" key={p.slug} style={delay(k)}>
+            <button type="button" className="ls-row" aria-expanded={on} onClick={() => setOpen(on ? null : p.slug)}>
+              <span className="ls-sign c32" aria-hidden="true">{on ? '▾' : '▸'}</span>
+              {cover ? <img className="ls-thumb" src={cover} alt="" loading="lazy" /> : <span className="ls-thumb" aria-hidden="true" />}
+              <span className="ls-when">{p.period}</span>
+              <span className="ls-slug c34 b">{p.slug}/</span>
+              <span className="ls-head c33">{p.headline ?? ''}</span>
+              <span className="ls-blurb">{p.blurb ?? p.summary}</span>
+            </button>
+            {on && (
+              <div className="ls-open">
+                {fig && <MediaGrid items={[fig]} single />}
+                <div className="ls-info">
+                  {p.role && <span className="cm-muted">{p.role}</span>}
+                  {points.length ? <ul>{points.map((t) => <li key={t}>{t}</li>)}</ul> : <p>{p.summary}</p>}
+                  <span className="cm-muted">{p.stack.join(' · ')}</span>
+                  <span className="cm-links">
+                    <button type="button" className="cm-linkbtn" onClick={() => run(`open ${p.slug}`)}>open {p.slug}</button>
+                    {(p.tour?.length ?? 0) > 0 && <button type="button" className="cm-linkbtn" onClick={() => run(`tour ${p.slug}`)}>tour {p.slug}</button>}
+                    {p.links.map((l) => <a key={l.url} href={l.url} target="_blank" rel="noopener">{l.label} ↗</a>)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Results as terminal bars. Values come from content, looked up by slug.
+const BAR = 24;
+const bar = (ratio: number, width = BAR) => { const n = Math.round(Math.max(0, Math.min(1, ratio)) * width); return '█'.repeat(n) + '░'.repeat(width - n); };
+function StatsReadout({ content, props }: Props) {
+  const p = content.projects.find((x) => x.slug === props.slug);
+  if (!p) return null;
+  const max = Math.max(1, ...(p.compare?.rows ?? []).map((r) => r.value));
+  return (
+    <div className="sr">
+      {(p.stats?.length ?? 0) > 0 && <p className="sr-title">{p.slug} · results</p>}
+      {p.stats?.map((s) => (
+        <div className="sr-row" key={s.label}>
+          <span>{s.label}</span>
+          {s.ratio !== undefined ? <span className="sr-bar c32" aria-hidden="true">{bar(s.ratio)}</span> : <span aria-hidden="true" />}
+          <strong>{s.value}</strong>
+        </div>
       ))}
+      {p.compare && <p className="sr-title">{p.compare.title}</p>}
+      {p.compare?.rows.map((r, k) => (
+        <div className="sr-row" key={r.label}>
+          <span>{r.label}</span>
+          <span className={`sr-bar ${k === p.compare!.rows.length - 1 ? 'c32' : 'cm-muted'}`} aria-hidden="true">{'█'.repeat(Math.max(1, Math.round((r.value / max) * BAR)))}</span>
+          <strong>{r.value} {r.unit}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// A guided walk through a project, tmux-style: narration beside the evidence, tabs along the bottom.
+function Tour({ content, props }: Props) {
+  const p = content.projects.find((x) => x.slug === props.slug);
+  const steps = (p?.tour ?? []).map((s) => ({ ...s, m: content.media.find((x) => x.id === s.media) })).filter((s): s is typeof s & { m: Media } => Boolean(s.m));
+  const [i, setI] = useState(0);
+  const [zoom, setZoom] = useState(false);
+  const closeZoom = useCallback(() => setZoom(false), []);
+  if (!p || !steps.length) return null;
+  const s = steps[i];
+  const go = (d: number) => setI((x) => Math.max(0, Math.min(steps.length - 1, x + d)));
+  return (
+    <>
+    {((p.stats?.length ?? 0) > 0 || p.compare) && <StatsReadout content={content} props={{ slug: p.slug }} />}
+    <div className="tr" data-keyfocus onKeyDown={(e) => {
+      if ((e.target as HTMLElement).tagName === 'VIDEO') return; // a focused video keeps its seek keys
+      if (e.key === 'ArrowRight') { e.stopPropagation(); go(1); } else if (e.key === 'ArrowLeft') { e.stopPropagation(); go(-1); }
+    }}>
+      <div className="tr-panes">
+        <div className="tr-text">
+          <span className="cm-muted">step {i + 1} of {steps.length}</span>
+          <h3 className="tr-title">{s.title}</h3>
+          <p>{s.text}</p>
+          <p className="tr-note c33"><span aria-hidden="true">▲ </span>{s.note}</p>
+          <div className="tr-nav">
+            <button type="button" className="cm-btn" onClick={() => go(-1)} aria-disabled={i === 0}>← prev</button>
+            <button type="button" className="cm-btn tr-next" onClick={() => go(1)} aria-disabled={i === steps.length - 1}>next →</button>
+          </div>
+        </div>
+        <figure className={/\.png$/i.test(s.m.url ?? '') ? 'tr-fig' : 'tr-fig tr-photo'} key={s.m.id}>
+          {s.m.type === 'video'
+            ? <video src={s.m.url} poster={s.m.poster} autoPlay={!matchMedia('(prefers-reduced-motion: reduce)').matches} muted loop playsInline controls aria-label={s.m.alt} />
+            : <button type="button" className="tr-zoom" onClick={() => setZoom(true)} aria-label={`View ${s.m.title} full screen`}><img src={s.m.url} alt={s.m.alt} /></button>}
+          <figcaption>{s.m.caption}</figcaption>
+        </figure>
+      </div>
+      <div className="tr-status" role="group" aria-label="Tour steps">
+        <span className="b">[{p.slug}]</span>
+        {steps.map((x, k) => <button type="button" key={x.tab} aria-pressed={k === i} data-on={k === i ? '' : undefined} onClick={() => setI(k)}>{k}:{x.tab}{k === i ? '*' : ''}</button>)}
+      </div>
+      {zoom && <Lightbox items={[s.m]} start={0} onClose={closeZoom} />}
+    </div>
+    </>
+  );
+}
+
+// Who did what when, drawn in block characters: one column per quarter.
+function Gantt({ content }: { content: Content }) {
+  const rows = timelineItems(content).filter((it) => it.kind === 'work' || it.kind === 'lab').sort((a, b) => (b.end ?? '9999').localeCompare(a.end ?? '9999') || b.start.localeCompare(a.start));
+  if (!rows.length) return null;
+  const now = new Date();
+  const y0 = Math.min(...rows.map((r) => Number(r.start.slice(0, 4))));
+  const years = now.getFullYear() - y0 + 1;
+  const pos = (d: string, end: boolean) => {
+    const [y, m] = d.split('-').map(Number);
+    return (y - y0) * 4 + Math.floor(((m || (end ? 12 : 1)) - 1) / 3);
+  };
+  const nowPos = (now.getFullYear() - y0) * 4 + Math.floor(now.getMonth() / 3);
+  const colors = ['c32', 'c34', 'c35', 'c33', 'c36'];
+  return (
+    <div className="gn">
+      <div className="gn-row gn-axis" aria-hidden="true"><span /><span className="gn-bar" style={{ minWidth: `${years * 4}ch` }}>{Array.from({ length: years }, (_, k) => `'${String(y0 + k).slice(2)} `).join('')}</span></div>
+      {rows.map((r, k) => {
+        const a = pos(r.start, false), b = r.end ? pos(r.end, true) : nowPos;
+        return (
+          <div className="gn-row" key={r.label}>
+            <span>{r.label} <span className="cm-muted">{r.detail}</span></span>
+            <span className={`gn-bar ${colors[k % colors.length]}`} style={{ minWidth: `${years * 4}ch` }} aria-hidden="true">{' '.repeat(a) + '█'.repeat(Math.max(1, b - a + 1))}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -193,6 +318,8 @@ function Timeline({ content }: Props) {
   const items = timelineItems(content);
   let year = '';
   return (
+    <>
+    <Gantt content={content} />
     <ol className="tl">
       {items.map((it, k) => {
         const y = it.start.slice(0, 4);
@@ -217,6 +344,7 @@ function Timeline({ content }: Props) {
         );
       })}
     </ol>
+    </>
   );
 }
 
@@ -447,15 +575,18 @@ function ProjectCard({ content, props }: Props) {
   );
 }
 
+// The assistant's plain-text pointer at a figure. React escapes it; absent on shell commands.
+const noteOf = (props: Record<string, unknown>) => (typeof props.note === 'string' ? props.note.slice(0, 140) : undefined);
+
 function MediaViewer({ content, props }: Props) {
   const m = content.media.find((x) => x.id === props.id);
-  return m ? <MediaGrid items={[m]} single /> : null;
+  return m ? <MediaGrid items={[m]} single note={noteOf(props)} /> : null;
 }
 
 function Gallery({ content, props }: Props) {
   const ids = Array.isArray(props.ids) ? (props.ids as string[]) : [];
   const items = ids.map((id) => content.media.find((m) => m.id === id)).filter((m): m is Media => Boolean(m));
-  return <MediaGrid items={items} />;
+  return <MediaGrid items={items} note={noteOf(props)} />;
 }
 
 function SitePreview({ content, props }: Props) {
@@ -526,8 +657,12 @@ function FitReport({ content, props }: Props) {
   const run = useContext(RunContext);
   const rows = (Array.isArray(props.rows) ? props.rows : []) as FitRow[];
   const mark: Record<string, string> = { strong: '●', partial: '◐', none: '○' };
+  const count = (s: string) => rows.filter((r) => String(r.strength) === s).length;
+  const score = rows.length ? (count('strong') + count('partial') / 2) / rows.length : 0;
   return (
-    <div className="cm-fit-wrap"><table className="cm-fit">
+    <div className="cm-fit-wrap">
+    {rows.length > 0 && <p className="cm-fit-score"><span className="sr-bar c32" aria-hidden="true">{bar(score, 20)}</span> <strong>{count('strong')} strong · {count('partial')} partial · {rows.length - count('strong') - count('partial')} not shown</strong></p>}
+    <table className="cm-fit">
       <thead><tr><th>requirement</th><th>match</th><th>evidence</th></tr></thead>
       <tbody>
         {rows.slice(0, 12).map((r, i) => {
@@ -542,11 +677,13 @@ function FitReport({ content, props }: Props) {
           );
         })}
       </tbody>
-    </table></div>
+    </table>
+    <p className="cm-muted cm-fit-foot">"not shown" means the site doesn't show it, not that William can't do it.</p>
+    </div>
   );
 }
 
-const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { Showcase, CodeBlock, Sources, MessageForm, OnePager, ProfileHeader, ProjectGrid, Timeline, SkillMap, FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
+const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { Showcase, StatsReadout, Tour, CodeBlock, Sources, MessageForm, OnePager, ProfileHeader, ProjectGrid, Timeline, SkillMap, FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
 
 export function UiBlock({ content, ui }: { content: Content | null; ui: { component: string; props: Record<string, unknown> } }) {
   const C = REGISTRY[ui.component];
