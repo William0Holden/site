@@ -26,7 +26,7 @@ export const ERRORS: Record<string, string> = {
 export const TOOL_LABELS: Record<string, string> = {
   show_project: 'opening a project', list_projects: 'listing projects', show_media: 'fetching media', get_resume: 'pulling up the resume',
   contact: 'getting contact details', github_activity: 'checking GitHub', search_corpus: 'searching the site', web_search: 'searching the web',
-  run_shell: 'running a command', match_requirements: 'matching requirements',
+  run_shell: 'running a command', match_requirements: 'matching requirements', show_stats: 'reading the results', present_tour: 'opening a guided tour',
   search_code: 'searching the code', list_code: 'listing files', read_code: 'reading code', tailor_one_pager: 'building a one-pager', leave_message: 'opening a message form',
 };
 
