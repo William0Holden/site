@@ -259,3 +259,10 @@ test('project figures follow the peer-reviewed paper', () => {
   assert.equal(p.headline, 'F1 0.864');
   assert.ok(content.projects.some((x) => x.slug === 'coursework'));
 });
+
+test('mdToAnsi: a link after bold text keeps its label and drops no escape codes', () => {
+  const out = mdToAnsi('• **Holden, W.O., et al.** "Title." [DOI](https://doi.org/10.1016/j.compag.2026.112159)');
+  assert.equal(stripAnsi(out), '• Holden, W.O., et al. "Title." DOI');
+  assert.match(out, /\x1b\]8;;https:\/\/doi\.org\/10\.1016\/j\.compag\.2026\.112159\x1b\\\x1b\[4mDOI/);
+  assert.equal(stripAnsi(mdToAnsi('see [**the paper**](https://x.org/p)')), 'see the paper');
+});
