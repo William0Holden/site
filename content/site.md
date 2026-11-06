@@ -22,6 +22,7 @@ education:
   - { school: "University of Georgia", degree: "B.S. Computer Science", date: "Dec 2024", detail: "Honors Program, Presidential Scholar, Dean's List" }
 publications:
   - { cite: "Holden, W.O., Li, G., Agyemang-Duah, E., Poku, R.A., Adenyo, C., Osei-Amponsah, R., Aggrey, S.E. \"Spatiotemporal video encoder integrated with metadata fusion for action recognition and behavior analysis.\" Computers and Electronics in Agriculture 253 (2026), 112159.", doi: "10.1016/j.compag.2026.112159", project: broiler-behavior }
+  - { cite: "Agyemang-Duah, E., Poku, R.A., Adenyo, C., Osei-Amponsah, R., Holden, W.O., Li, G., Rekaya, R., Aggrey, S.E. \"Climate adaptation in poultry: Spatiotemporal behavioral and kinematic responses of chicken genotypes to identical temperature-humidity exposures.\" Journal of Veterinary Behavior 87 (2026), 41–49.", doi: "10.1016/j.jveb.2026.08.002", project: broiler-behavior }
 skills:
   - { area: "Languages", items: [Python, TypeScript, JavaScript, Java, C++, C, SQL, R] }
   - { area: "AI & ML", items: ["Agentic workflows", "LLM orchestration", RAG, "Vector search", PyTorch, TensorFlow, scikit-learn, OpenCV, YOLO, SAM, ONNX] }
