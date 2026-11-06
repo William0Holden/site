@@ -63,7 +63,7 @@ export function mdToAnsi(md: string, commands?: Set<string>): string {
     .replace(/\*\*([^*\n]+)\*\*/g, (_m, t) => c(t, 'bold'))
     .replace(/(^|[^*\w])\*([^*\s][^*\n]*)\*/g, (_m, pre, t) => pre + c(t, 'italic'))
     .replace(/`([^`\n]+)`/g, (_m, t) => code(t))
-    .replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (_m, t, u) => (/^(https?:|mailto:)/.test(u) ? link(c(t, 'underline'), u) : u.startsWith('/') ? link(c(t, 'underline'), u) : t))
+    .replace(/(?<!\x1b)\[([^\]\n]+)\]\(([^)\s]+)\)/g, (_m, t, u) => (/^(https?:|mailto:)/.test(u) ? link(c(t, 'underline'), u) : u.startsWith('/') ? link(c(t, 'underline'), u) : t))
     // A follow-up: "› plain question" asks the assistant when clicked; a backticked command was linked above.
     .replace(/^› (.+)$/gm, (_m, t) => `${c('›', 'green')} ${commands && FOLLOW_UP.test(t) ? cmdLink(t, `ask ${t}`) : t}`);
 }
