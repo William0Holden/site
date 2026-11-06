@@ -103,3 +103,11 @@ test('proof-of-work verifies only correct, unexpired, signed solutions', async (
   assert.equal(await verifyPow(SECRET, old, '0', 0), null);
   assert.equal(await verifyPow(SECRET, challenge, '1e3', bits), null);
 });
+
+test('shipped personal entries are personal tier and stay out of public output', () => {
+  const shipped = JSON.parse(readFileSync(new URL('../worker/generated/personal.json', import.meta.url), 'utf8')) as PersonalEntry[];
+  assert.ok(shipped.length >= 4);
+  assert.ok(shipped.every((e) => e.tier === 'personal' && e.title && e.body.trim()));
+  const pub = readFileSync(new URL('../dist/api/content.json', import.meta.url), 'utf8');
+  for (const e of shipped) assert.ok(!pub.includes(e.body.trim().slice(0, 40)), e.slug);
+});
