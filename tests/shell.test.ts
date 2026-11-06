@@ -240,3 +240,22 @@ test('follow-ups: plain questions link to ask, anything shell-like stays plain t
   assert.ok(!mdToAnsi('› what else?').includes('cmd:'));
 });
 
+test('publications: both papers get their own journal on the timeline and a distinct BibTeX entry', async () => {
+  const { run } = harness();
+  const found = (await run('find . -name holden.bib')).out.trim();
+  const bib = (await run(`cat ${found}`)).out;
+  assert.match(bib, /@article\{holden2026,/);
+  assert.match(bib, /@article\{agyemangduah2026,/);
+  assert.match(bib, /pages\s+= \{41–49\}/);
+  assert.doesNotMatch(bib, /^%/m);
+  const timeline = (await run('timeline')).out;
+  assert.match(timeline, /Publication: Computers and Electronics in Agriculture/);
+  assert.match(timeline, /Publication: Journal of Veterinary Behavior/);
+});
+
+test('project figures follow the peer-reviewed paper', () => {
+  const p = content.projects.find((x) => x.slug === 'broiler-behavior')!;
+  assert.equal(p.stats.find((s) => s.label === 'test accuracy')?.value, '86.41%');
+  assert.equal(p.headline, 'F1 0.864');
+  assert.ok(content.projects.some((x) => x.slug === 'coursework'));
+});
