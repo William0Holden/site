@@ -33,10 +33,11 @@ function resumeMd(ct: Content): string {
   return `# ${s.name}\n\n${s.role} · ${s.location} · ${email(ct)}\n\n${plainMd(s.bio)}\n\n## Experience\n\n${exp}\n\n## Projects\n\n${projects}\n\n## Publications\n\n${pubs}\n\n## Education\n\n${edu}\n\n## Awards\n\n${(s.awards ?? []).map((a) => `- ${a}`).join('\n')}\n\n## Skills\n\n${skills}\n`;
 }
 
+const parseCite = (cite: string) => cite.match(/^(.*?)\s"(.+?)\."\s(.+?)\s(\d+)\s\((\d{4})\),\s(\d+(?:[–-]\d+)?)/);
 const bibtex = (ct: Content) => (ct.site.publications ?? []).map((p) => {
-  const m = p.cite.match(/^(.*?)\s"(.+?)\."\s(.+?)\s(\d+)\s\((\d{4})\),\s(\d+)/);
+  const m = parseCite(p.cite);
   if (!m) return `% ${p.cite}`;
-  return `@article{holden${m[5]},\n  author  = {${m[1].replace(/\.,? $/, '.').replace(/, ([A-Z])/g, ' and $1')}},\n  title   = {${m[2]}},\n  journal = {${m[3]}},\n  volume  = {${m[4]}},\n  pages   = {${m[6]}},\n  year    = {${m[5]}},\n  doi     = {${p.doi ?? ''}}\n}`;
+  return `@article{${m[1].split(',')[0].toLowerCase().replace(/[^a-z]/g, '')}${m[5]},\n  author  = {${m[1].replace(/\.,? $/, '.').replace(/, ([A-Z])/g, ' and $1')}},\n  title   = {${m[2]}},\n  journal = {${m[3]}},\n  volume  = {${m[4]}},\n  pages   = {${m[6]}},\n  year    = {${m[5]}},\n  doi     = {${p.doi ?? ''}}\n}`;
 }).join('\n\n') + '\n';
 
 // Sample questions on the welcome screen. Clicking one asks the assistant, so the terminal allows
@@ -97,7 +98,7 @@ export function buildTree(ct: Content, commandNames: string[], now: number): Dir
     projects: dir(W, projects, t),
     experience: dir(W, experience, t),
     work: dir(W, { aderant: dir(W, { details: file(W, '', { denied: true, size: 0 }, t) }, t) }, t),
-    publications: dir(W, { 'holden2026-compag.bib': f(bibtex(ct)) }, t),
+    publications: dir(W, { 'holden.bib': f(bibtex(ct)) }, t),
     '.plan': f(`${ct.site.role} at Aderant. ${ct.projects.find((p) => p.slug === 'aderant')?.summary ?? ''}\nReach me: ${email(ct)}\n`),
     '.bashrc': f(`# ~/.bashrc for william\nalias ll='ls -alF'\nalias gs='git status'\nalias hire='sudo hire-me'\n`),
   };
@@ -173,7 +174,7 @@ export function timelineItems(ct: Content): TimelineItem[] {
     const season = /spring|feb|jan|mar/i.test(p.period) ? '-03' : /^dec/i.test(p.period) ? '-12' : /fall|sep|oct|nov/i.test(p.period) ? '-09' : /jun|jul|aug|summer/i.test(p.period) ? '-06' : '';
     items.push({ start: y + season, label: p.title, detail: p.period, kind: p.kind === 'homelab' ? 'lab' : 'project', slug: p.slug });
   }
-  for (const pub of ct.site.publications ?? []) { const y = pub.cite.match(/\((\d{4})\)/)?.[1]; if (y) items.push({ start: y, label: 'Publication: Computers and Electronics in Agriculture', detail: y, kind: 'pub', slug: pub.project }); }
+  for (const pub of ct.site.publications ?? []) { const y = pub.cite.match(/\((\d{4})\)/)?.[1]; if (y) items.push({ start: y, label: `Publication: ${parseCite(pub.cite)?.[3] ?? 'journal article'}`, detail: y, kind: 'pub', slug: pub.project }); }
   return items.sort((a, b) => b.start.localeCompare(a.start));
 }
 
