@@ -342,26 +342,14 @@ adding one a single-file change.
 ## Seed content (from his resume, Oct 2026; the only facts you may state)
 
 **Summary:** AI Engineer building internal agentic and retrieval-augmented platforms at Aderant:
-three applications in seven months, each automating manual work for the teams behind the
+building tools for the teams behind the
 company's legal software. Background spans full-stack development, LLM orchestration, and deep
 learning for computer vision and NLP, with peer-reviewed research in *Computers and Electronics
 in Agriculture*.
 
-**Aderant (Dec 2025–present), AI Engineer, Docketing & VI Engineering, Atlanta (hybrid):**
-- Designed and delivered three internal AI applications in seven months, each replacing a manual
-  process for the teams that maintain Aderant's docketing and legal-content products.
-- Change-detection platform monitoring 60,000+ court, agency, and judicial forms in the Forms
-  Workflow content library, surfacing revisions as structured, reviewable diffs.
-- Agentic court-rules monitoring tool: crawls court websites across U.S. jurisdictions via
-  Browserbase remote browsers, filters DOM noise to isolate true-positive changes, and applies
-  Claude reasoning via Bedrock to judge whether a change materially affects a rule or deadline.
-- Competitive-intelligence hub: deduplicates external news alongside Aha! and Marketo data
-  into a RAG pipeline over a vector store; teams chat with the corpus and auto-generate
-  battlecards, newsletters, and briefs grounded in cited sources.
-- SDLC agent that validates and normalizes inbound bug reports and enhancement requests with an
-  LLM, then routes deduplicated tickets into GitHub Projects and Slack.
-- Stack: Python, TypeScript/React, AWS (Bedrock, AgentCore, Lambda, ECS/EKS, EC2, Aurora/RDS,
-  S3, Route 53), Claude Platform, Browserbase, Terraform, Flux GitOps, Grafana.
+**Aderant (Dec 2025–present), AI Engineer, Atlanta (hybrid):** builds internal AI applications for the
+teams behind Aderant's legal software, focused on agentic workflows and retrieval-augmented generation.
+The specifics are confidential and stay out of this repo.
 
 **UGA School of Computing (2024–Dec 2025), Graduate Research Assistant, Computer Vision:**
 spatiotemporal video encoder with metadata fusion (X3D 3D-CNN + YOLO tracking) for broiler-chicken
