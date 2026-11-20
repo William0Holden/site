@@ -17,12 +17,15 @@ type Mode = 'loading' | 'idle' | 'running' | 'readline' | 'program' | 'exited';
 
 const STORE = 'wholden-sh-v1';
 const CHAT_STORE = 'wholden-ask-v1';
+// Showing the assistant's tool calls (name + arguments) is on by default; `trace off` hides them.
+const TRACE_STORE = 'wholden-trace-v1';
 // Bookkeeping notes the model must never show (older builds put them in assistant turns).
 const stripNotes = (s: string) => s.replace(/\[tools used:[^\]\n]*\]?/gi, '').replace(/^\(context:[^)\n]*\)\n?/i, '').trimEnd();
 const MAX_ENTRIES = 1500;
 const MAX_CHAT_TURNS = 10;
 // Commands a link (/?cmd=...) may run on load: read-only, no redirection or chaining.
-const DEEPLINK = /^(?:(resume|projects|open|tour|skills|timeline|gallery|contact|help|neofetch|ls|tree|man|play)( [\w.~ -]{0,60})?|fit)$/;
+// (`tour --code` / `tour --me` ask the AI, so a link can't start them.)
+const DEEPLINK = /^(?:(resume|projects|open|tour|skills|timeline|gallery|contact|help|neofetch|ls|tree|man|play)( (?!.*--(?:code|me)\b)[\w.~ -]{0,60})?|fit|demo( whisper)?)$/;
 
 const store = {
   get: (k: string, s: Storage | undefined) => { try { return s?.getItem(k) ?? null; } catch { return null; } },
@@ -30,6 +33,7 @@ const store = {
 };
 const local = () => (typeof localStorage === 'undefined' ? undefined : localStorage);
 const session = () => (typeof sessionStorage === 'undefined' ? undefined : sessionStorage);
+const traceOn = () => store.get(TRACE_STORE, local()) !== 'off';
 const clean = (s: string) => s.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '');
 // Inline `code` in the assistant's replies becomes clickable only for read-only commands.
 let safeCache: Set<string> | null = null;
@@ -225,15 +229,27 @@ export default function Terminal() {
     if (!io.isTTY) io.out(stripAnsi(mdToAnsi(stripNotes(full))) + '\n');
     return 0;
 
+    function dropSpinner() {
+      if (aiId === null) return;
+      const id = aiId;
+      setEntries((prev) => prev.filter((x) => x.id !== id || (x.k === 'ai' && x.text)));
+      aiId = null;
+    }
     async function apply(e: ChatEvent) {
           if (e.type === 'text') { const id = aiId ?? startAi(); patchAi(id, (x) => ({ ...x, text: x.text + clean(e.t), note: undefined })); }
           else if (e.type === 'note') { const id = aiId ?? startAi(); patchAi(id, (x) => ({ ...x, note: e.message })); }
           else if (e.type === 'tool' && !e.hidden) {
-            // Leave a trace of each step in the scrollback, then keep the spinner below it.
+            // Leave a trace of each step in the scrollback, then keep the spinner below it. With
+            // trace on (the default) the line is the real call: tool name and its arguments.
             const label = TOOL_LABELS[e.name] ?? 'working';
-            if (aiId !== null) { const id = aiId; setEntries((prev) => prev.filter((x) => x.id !== id || (x.k === 'ai' && x.text))); aiId = null; }
-            write(`${c('●', 'green')} ${c(label, 'gray')}\n`);
+            dropSpinner();
+            write(traceOn() ? `${c('●', 'green')} ${c(clean(e.name), 'bold')}${c(`(${clean(e.args ?? '')})`, 'gray')}\n` : `${c('●', 'green')} ${c(label, 'gray')}\n`);
             startAi(label);
+          }
+          else if (e.type === 'tool_done' && traceOn()) {
+            dropSpinner();
+            write(`  ${c('⎿', 'gray')} ${c(`${e.chars >= 1000 ? `${(e.chars / 1000).toFixed(1)}k` : e.chars} chars back · ${e.ms < 1000 ? `${e.ms}ms` : `${(e.ms / 1000).toFixed(1)}s`}`, 'gray')}\n`);
+            startAi('thinking');
           }
           else if (e.type === 'ui') {
             const d = e.data;
@@ -270,6 +286,7 @@ export default function Terminal() {
     }),
     ask: (q, io, opts) => ask(q, io, opts),
     resetChat: () => { chat.current = []; lastTools.current = []; },
+    trace: (on) => { if (on !== undefined) store.set(TRACE_STORE, on ? 'on' : 'off', local()); return traceOn(); },
     persist,
     exit: () => { modeRef.current = 'exited'; },
     clear: () => { queue.current = []; setEntries([]); },

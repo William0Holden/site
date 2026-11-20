@@ -17,6 +17,7 @@ export interface Host {
   ask?(question: string, io: IO, opts?: { kind?: 'fit' }): Promise<number>;
   readLine?(prompt: string, signal: AbortSignal, opts?: { multiline?: boolean }): Promise<string | null>; // null on ^D / ^C
   resetChat?(): void;
+  trace?(on?: boolean): boolean; // show the assistant's tool calls; returns the current setting
   persist?(): void;
   exit?(): void;
   clear?(): void;

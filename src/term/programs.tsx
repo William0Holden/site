@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { Program } from '../../shell/sh';
 import { Ansi } from './Ansi';
+import { askAssistant, type ChatMsg } from './ai';
 
 type Done = (r: { code: number; text?: string }) => void;
 const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -255,6 +256,50 @@ function Boot({ onExit }: { onExit: Done }) {
   const pre = useRef<HTMLPreElement>(null);
   const typed = useRef('');
   const state = useRef({ lines: [''], esc: '' });
+  // Ctrl-G: ask the AI, which sees the console's last lines and can type commands into the VM.
+  const [ai, setAi] = useState<{ open: boolean; busy: boolean; log: { k: 'q' | 'a' | 'tool' | 'err'; text: string }[] }>({ open: false, busy: false, log: [] });
+  const [q, setQ] = useState('');
+  const qRef = useRef<HTMLInputElement>(null);
+  const aiChat = useRef<ChatMsg[]>([]);
+  const aiAbort = useRef<AbortController | null>(null);
+  const typing = useRef(Promise.resolve());
+  useEffect(() => () => aiAbort.current?.abort(), []);
+  const openAi = () => { setAi((x) => ({ ...x, open: true })); requestAnimationFrame(() => qRef.current?.focus()); };
+  const closeAi = () => { setAi((x) => ({ ...x, open: false })); requestAnimationFrame(() => keys.current?.focus()); };
+  const addLog = (k: 'q' | 'a' | 'tool' | 'err', text: string) => setAi((x) => {
+    const log = [...x.log];
+    if (k === 'a' && log.length && log[log.length - 1].k === 'a') log[log.length - 1] = { k, text: log[log.length - 1].text + text };
+    else log.push({ k, text });
+    return { ...x, log: log.slice(-30) };
+  });
+  const askVm = async () => {
+    const question = q.trim();
+    if (!question || ai.busy) return;
+    setQ('');
+    addLog('q', question);
+    setAi((x) => ({ ...x, busy: true }));
+    const screenText = state.current.lines.slice(-40).join('\n').replace(/\x1b\[[0-9;]*m/g, '').slice(-3000);
+    const messages: ChatMsg[] = [...aiChat.current.slice(-8), { role: 'user', content: question }];
+    const ctl = new AbortController();
+    aiAbort.current = ctl;
+    try {
+      const full = await askAssistant(messages, {
+        mode: 'vm', screen: screenText, signal: ctl.signal,
+        onEvent: (e) => {
+          if (e.type === 'text') addLog('a', e.t);
+          else if (e.type === 'tool' && !e.hidden) addLog('tool', `● ${e.name}(${(e.args ?? '').replace(/[\x00-\x1f\x7f]/g, '')})`);
+          else if (e.type === 'error') addLog('err', e.message);
+          else if (e.type === 'ui' && e.data.component === 'VmType') {
+            const cmd = String((e.data.props as { command?: unknown })?.command ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 200);
+            if (cmd) typing.current = typing.current.then(() => new Promise((r) => setTimeout(r, 900))).then(() => { typed.current = ''; emu.current?.serial0_send('\x15' + cmd + '\r'); });
+          }
+        },
+      });
+      aiChat.current = [...messages, { role: 'assistant' as const, content: full.slice(0, 2000) }].slice(-10);
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') addLog('err', (e as Error).message);
+    } finally { setAi((x) => ({ ...x, busy: false })); }
+  };
 
   useEffect(() => {
     let alive = true, gotOutput = false;
@@ -304,6 +349,7 @@ function Boot({ onExit }: { onExit: Done }) {
   const send = (s: string) => emu.current?.serial0_send(s);
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.ctrlKey && e.key === ']') { e.preventDefault(); onExit({ code: 0 }); return; }
+    if (e.ctrlKey && (e.key === 'g' || e.key === 'G')) { e.preventDefault(); openAi(); return; }
     const map: Record<string, string> = { Enter: '\r', Backspace: '\x7f', Tab: '\t', Escape: '\x1b', ArrowUp: '\x1b[A', ArrowDown: '\x1b[B', ArrowRight: '\x1b[C', ArrowLeft: '\x1b[D', Home: '\x1b[H', End: '\x1b[F', Delete: '\x1b[3~' };
     let out = map[e.key];
     if (!out && e.ctrlKey && e.key.length === 1) out = String.fromCharCode(e.key.toUpperCase().charCodeAt(0) - 64);
@@ -319,11 +365,24 @@ function Boot({ onExit }: { onExit: Done }) {
   };
 
   return (
-    <div className="prog boot" role="dialog" aria-label="Linux virtual machine" onClick={() => keys.current?.focus()}>
-      <div className="prog-bar inv"><span>v86 · Buildroot Linux 6.8 · 128 MB · no network</span><button type="button" className="prog-x" onClick={() => onExit({ code: 0 })}>exit (Ctrl-])</button></div>
+    <div className="prog boot" role="dialog" aria-label="Linux virtual machine" onClick={(e) => { if (!(e.target as HTMLElement).closest('.boot-ai')) keys.current?.focus(); }}>
+      <div className="prog-bar inv"><span>v86 · Buildroot Linux 6.8 · 128 MB · no network</span><span className="boot-btns"><button type="button" className="prog-x" onClick={(e) => { e.stopPropagation(); if (ai.open) closeAi(); else openAi(); }}>ask AI (Ctrl-G)</button> <button type="button" className="prog-x" onClick={() => onExit({ code: 0 })}>exit (Ctrl-])</button></span></div>
       <pre ref={pre} className="boot-screen" aria-live="polite">
         {error ? `boot: ${error}` : screen.map((l, i) => <div key={i}><Ansi text={l || (i === screen.length - 1 ? '' : ' ')} />{i === screen.length - 1 && <span className="cursor"> </span>}</div>)}
       </pre>
+      {ai.open && (
+        <div className="boot-ai" aria-label="AI assistant for the VM">
+          <div className="boot-ai-log" aria-live="polite">
+            {!ai.log.length && <div className="cm-muted">ask about this machine, or ask the AI to do something here: "what's using memory?", "show me the kernel log". It sees the last lines on screen and can type commands. Esc closes.</div>}
+            {ai.log.map((l, i) => <div key={i} className={`boot-ai-${l.k}`}>{l.k === 'q' ? `ai> ${l.text}` : l.text}</div>)}
+            {ai.busy && <div className="cm-muted">thinking…</div>}
+          </div>
+          <form className="boot-ai-in" onSubmit={(e) => { e.preventDefault(); askVm(); }}>
+            <span aria-hidden="true">ai&gt;</span>
+            <input ref={qRef} value={q} maxLength={600} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeAi(); } }} aria-label="Ask the AI about the VM" placeholder={ai.busy ? 'working…' : 'ask, then Enter'} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+          </form>
+        </div>
+      )}
       <textarea ref={keys} className="boot-keys" aria-label="Keyboard input for the virtual machine" onKeyDown={onKey}
         onPaste={(e) => { e.preventDefault(); send(e.clipboardData.getData('text').replace(/\n/g, '\r')); }} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
     </div>

@@ -6,6 +6,7 @@ export const LIMITS = {
   maxMessageChars: 600,
   maxFitChars: 6000, // a pasted job description (`fit`), once per conversation
   maxShellRunsPerRequest: 3,
+  maxVmTypesPerRequest: 3, // commands the assistant may type into the visitor's `boot` VM per reply
   maxHistoryChars: 16_000,
   maxOutputTokens: 700,
   maxToolRounds: 4,

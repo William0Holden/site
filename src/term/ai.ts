@@ -3,7 +3,8 @@
 export type ChatMsg = { role: 'user' | 'assistant'; content: string };
 export type ChatEvent =
   | { type: 'text'; t: string }
-  | { type: 'tool'; name: string; hidden: boolean }
+  | { type: 'tool'; name: string; hidden: boolean; id?: string; args?: string }
+  | { type: 'tool_done'; id: string; ms: number; chars: number }
   | { type: 'ui'; data: Record<string, unknown> }
   | { type: 'error'; message: string }
   | { type: 'note'; message: string };
@@ -28,6 +29,7 @@ export const TOOL_LABELS: Record<string, string> = {
   contact: 'getting contact details', github_activity: 'checking GitHub', search_corpus: 'searching the site', web_search: 'searching the web',
   run_shell: 'running a command', match_requirements: 'matching requirements', show_stats: 'reading the results', present_tour: 'opening a guided tour',
   search_code: 'searching the code', list_code: 'listing files', read_code: 'reading code', tailor_one_pager: 'building a one-pager', leave_message: 'opening a message form',
+  present_code_tour: 'building a code tour', present_path: 'planning your path', run_demo: 'loading a demo', vm_type: 'typing in the VM', ask_about: 'checking', about: 'reading the profile',
 };
 
 let statusPromise: Promise<Status | null> | null = null;
@@ -52,10 +54,10 @@ async function solvePow(signal: AbortSignal): Promise<{ challenge: string; count
 }
 
 // Returns the assistant's full text, or throws an Error whose message is a user-facing string.
-export async function askAssistant(messages: ChatMsg[], opts: { mode?: 'fit'; signal: AbortSignal; onEvent: (e: ChatEvent) => void }): Promise<string> {
+export async function askAssistant(messages: ChatMsg[], opts: { mode?: 'fit' | 'vm'; screen?: string; signal: AbortSignal; onEvent: (e: ChatEvent) => void }): Promise<string> {
   const post = (pow?: { challenge: string; counter: string } | null) => fetch('/api/chat', {
     method: 'POST', signal: opts.signal, headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ messages, mode: opts.mode, pow: pow ?? undefined }),
+    body: JSON.stringify({ messages, mode: opts.mode, screen: opts.screen, pow: pow ?? undefined }),
   });
   let res = await post(null);
   if (res.status === 403) {
@@ -88,7 +90,8 @@ export async function askAssistant(messages: ChatMsg[], opts: { mode?: 'fit'; si
       let data: any;
       try { data = JSON.parse(line); } catch { continue; }
       if (event === 'text') { text += data.t; opts.onEvent({ type: 'text', t: data.t }); }
-      else if (event === 'tool') opts.onEvent({ type: 'tool', name: data.name, hidden: Boolean(data.hidden) });
+      else if (event === 'tool') opts.onEvent({ type: 'tool', name: String(data.name), hidden: Boolean(data.hidden), id: typeof data.id === 'string' ? data.id : undefined, args: typeof data.args === 'string' ? data.args : undefined });
+      else if (event === 'tool_done' && typeof data.id === 'string') opts.onEvent({ type: 'tool_done', id: data.id, ms: Number(data.ms) || 0, chars: Number(data.chars) || 0 });
       else if (event === 'ui') opts.onEvent({ type: 'ui', data });
       else if (event === 'error') opts.onEvent({ type: 'error', message: String(data.message ?? 'error') });
     }

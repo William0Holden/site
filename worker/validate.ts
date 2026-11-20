@@ -6,9 +6,12 @@ export const FIT_INSTRUCTIONS = `The visitor pasted a job description. Extract i
 type InMsg = { role: 'user' | 'assistant'; content: string };
 
 type Pow = { challenge: string; counter: string };
-export function validate(body: unknown): { ok: true; messages: InMsg[]; turnstileToken?: string; pow?: Pow; fit: boolean } | { ok: false; status: number; error: string } {
-  const b = body as { messages?: unknown; turnstileToken?: unknown; pow?: { challenge?: unknown; counter?: unknown }; mode?: unknown };
+export const MAX_SCREEN_CHARS = 3000;
+
+export function validate(body: unknown): { ok: true; messages: InMsg[]; turnstileToken?: string; pow?: Pow; fit: boolean; vm: boolean } | { ok: false; status: number; error: string } {
+  const b = body as { messages?: unknown; turnstileToken?: unknown; pow?: { challenge?: unknown; counter?: unknown }; mode?: unknown; screen?: unknown };
   const fit = b?.mode === 'fit';
+  const vm = b?.mode === 'vm';
   if (!Array.isArray(b?.messages) || b.messages.length === 0) return { ok: false, status: 400, error: 'bad_request' };
   if (b.messages.length > 2 * LIMITS.maxUserTurns + 2) return { ok: false, status: 429, error: 'conversation_limit' };
   const messages: InMsg[] = [];
@@ -23,6 +26,11 @@ export function validate(body: unknown): { ok: true; messages: InMsg[]; turnstil
   if (raw.length > (fit ? LIMITS.maxFitChars : LIMITS.maxMessageChars)) return { ok: false, status: 413, error: 'message_too_long' };
   // One long job description per conversation: refuse a second while an earlier one is in the history.
   if (fit && raw.length > LIMITS.maxMessageChars && (b.messages as { role: string; content: string }[]).slice(0, -1).some((m) => m.role === 'user' && m.content.length > LIMITS.maxMessageChars)) return { ok: false, status: 429, error: 'conversation_limit' };
+  // Inside `boot`: the VM's console tail rides along separately and is framed here, never by the client.
+  if (vm) {
+    const screen = (typeof b.screen === 'string' ? b.screen : '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '').slice(-MAX_SCREEN_CHARS).replace(/<\s*\/?\s*screen[^>]*>/gi, '');
+    last.content = `<screen>\n${screen}\n</screen>\n${raw}`;
+  }
   if (fit) last.content = `[The visitor ran \`fit\` and pasted a job description. ${FIT_INSTRUCTIONS}]\n<job_description>\n${raw.replace(/<\s*\/?\s*job_description[^>]*>/gi, '')}\n</job_description>`;
   // Earlier pasted job descriptions are trimmed so they can't be replayed at full length.
   for (let i = 0; i < messages.length - 1; i++) if (messages[i].content.length > LIMITS.maxMessageChars && messages[i].role === 'user') messages[i].content = messages[i].content.slice(0, LIMITS.maxMessageChars) + ' […]';
@@ -37,6 +45,6 @@ export function validate(body: unknown): { ok: true; messages: InMsg[]; turnstil
   }
   while (kept.length && kept[0].role !== 'user') kept.shift();
   const pow = typeof b.pow?.challenge === 'string' && typeof b.pow?.counter === 'string' ? { challenge: b.pow.challenge, counter: b.pow.counter } : undefined;
-  return { ok: true, messages: kept, turnstileToken: typeof b.turnstileToken === 'string' ? b.turnstileToken : undefined, pow, fit };
+  return { ok: true, messages: kept, turnstileToken: typeof b.turnstileToken === 'string' ? b.turnstileToken : undefined, pow, fit: fit && !vm, vm };
 }
 

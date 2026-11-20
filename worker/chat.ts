@@ -4,11 +4,12 @@ import type { Env } from './index';
 import { LIMITS, DEFAULT_MODEL, DEFAULT_FALLBACK } from './config';
 import { cookie, getCookie, ipKey, issuePow, signSession, verifyPow, verifySession, verifyToken, verifyTurnstile, visitorId } from './auth';
 import { streamRound, type ChatMessage } from './llm';
-import { chatTools, systemPrompt, toolDefinitions } from './prompt';
+import { chatTools, systemPrompt, toolDefinitions, vmSystemPrompt } from './prompt';
 import { WEB_SEARCH_TOOL, webSearch } from './websearch';
 import { RUN_SHELL_TOOL, runShell } from './shelltool';
 import { validate } from './validate';
 import { readCapped } from './body';
+import { argPreview } from './trace';
 import type { Content, Ctx, PersonalEntry } from '../tools/registry';
 import type { CodeIndex } from '../tools/code';
 import personalData from './generated/personal.json';
@@ -125,12 +126,13 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
 
   const run = async () => {
     const messages: ChatMessage[] = [
-      { role: 'system', content: [{ type: 'text', text: systemPrompt(content), cache_control: { type: 'ephemeral' } }] },
+      { role: 'system', content: [{ type: 'text', text: v.vm ? vmSystemPrompt() : systemPrompt(content), cache_control: { type: 'ephemeral' } }] },
       ...v.messages,
     ];
-    const defs = [...toolDefinitions(), WEB_SEARCH_TOOL, RUN_SHELL_TOOL];
-    let webSearches = 0, shellRuns = 0;
-    const available = chatTools();
+    // Inside the VM the assistant can only type into it; everywhere else it gets the full set.
+    const defs = v.vm ? toolDefinitions('vm') : [...toolDefinitions(), WEB_SEARCH_TOOL, RUN_SHELL_TOOL];
+    let webSearches = 0, shellRuns = 0, vmTypes = 0;
+    const available = chatTools(v.vm ? 'vm' : 'chat');
     let spent = 0;
     let toolChars = 0;
     try {
@@ -147,27 +149,31 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
         for (const call of calls) {
           const t = available.find((x) => x.name === call.function.name);
           let output: string;
-          if (call.function.name === 'web_search') {
+          // Every visible call is shown to the visitor as it starts (name + argument preview) and as it ends.
+          const started = Date.now();
+          let shown = false;
+          const announce = (name: string, hidden = false) => { shown = !hidden; send('tool', { name, hidden, ...(hidden ? {} : { id: call.id, args: argPreview(call.function.arguments) }) }); };
+          if (call.function.name === 'web_search' && !v.vm) {
             let q = '';
             try { q = String(JSON.parse(call.function.arguments || '{}').query ?? ''); } catch { /* invalid */ }
             if (!q.trim()) output = 'Invalid arguments for web_search.';
             else if (webSearches >= LIMITS.maxWebSearchesPerRequest) output = 'Web search limit reached for this message; answer with what you have.';
             else {
               webSearches++;
-              send('tool', { name: 'web_search', hidden: false });
+              announce('web_search');
               const r = await webSearch(env.OPENROUTER_API_KEY!, models(env)[0], q, req.signal);
               spent += r.costUsd;
               if (r.sources.length) send('ui', { component: 'WebSources', props: { sources: r.sources } });
               output = r.text;
             }
-          } else if (call.function.name === 'run_shell') {
+          } else if (call.function.name === 'run_shell' && !v.vm) {
             let command = '';
             try { command = String(JSON.parse(call.function.arguments || '{}').command ?? ''); } catch { /* invalid */ }
             if (!command.trim() || command.length > 300) output = 'Invalid arguments for run_shell.';
             else if (shellRuns >= LIMITS.maxShellRunsPerRequest) output = 'run_shell limit reached for this message.';
             else {
               shellRuns++;
-              send('tool', { name: 'run_shell', hidden: false });
+              announce('run_shell');
               const r = (await runShell(content, command, req.signal)).slice(0, Math.max(200, Math.min(4000, LIMITS.maxToolOutputChars - toolChars)));
               // The browser replays the same command in its own read-only sandbox to show it.
               send('ui', { component: 'ShellRun', props: { command } });
@@ -179,14 +185,16 @@ export async function handleChat(req: Request, env: Env, ctx: ExecutionContext):
             try { args = call.function.arguments ? JSON.parse(call.function.arguments) : {}; } catch { args = null; }
             const parsed = t.input.safeParse(args);
             if (!parsed.success) output = `Invalid arguments for ${t.name}.`;
+            else if (t.name === 'vm_type' && ++vmTypes > LIMITS.maxVmTypesPerRequest) output = 'You already typed the most commands allowed in one reply; explain what to look for.';
             else if (t.tier === 'gated' && !unlocked) output = "That one's just for friends: it needs an unlock link from William.";
             else {
-              send('tool', { name: t.name, hidden: t.visibility === 'hidden' });
+              announce(t.name, t.visibility === 'hidden');
               const out = await t.handler(parsed.data, toolCtx);
               if (out.ui) send('ui', out.ui);
               output = out.text.slice(0, Math.max(200, Math.min(4000, LIMITS.maxToolOutputChars - toolChars)));
             }
           }
+          if (shown) send('tool_done', { id: call.id, ms: Date.now() - started, chars: output.length });
           toolChars += output.length;
           messages.push({ role: 'tool', tool_call_id: call.id, content: output });
         }
