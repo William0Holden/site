@@ -298,11 +298,26 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
 
     tour: {
       readonly: true, help: 'walk through a project step by step',
-      man: 'tour <project>\n\n  tour broiler-behavior',
-      run: (args, io) => {
+      man: "tour <project>\ntour --code <project>\ntour --me [who]\n\n  tour broiler-behavior        a guided walk through the project\n  tour --code decktection      the AI walks you through the real code, step by step\n  tour --me                    the AI picks a short path through the site for you\n  tour --me recruiter          (or engineer, researcher, friend, curious)",
+      run: async (args, io) => {
+        if (args[0] === '--code' || args[0] === '--me') {
+          // These ask the AI, so they never run in the read-only shell (the assistant's run_shell).
+          if (io.sh.readonly || !io.sh.host.ask) { io.err(`tour ${args[0]}: ask in the terminal\n`); return 126; }
+          if (args[0] === '--code') {
+            const p = args[1] ? findProject(ct, args[1]) : undefined;
+            if (!p) { io.err(`usage: tour --code <project>. projects: ${ct.projects.map((x) => x.slug).join(', ')}\n`); return 1; }
+            return io.sh.host.ask(`(tour --code ${p.slug}) Walk me through the most interesting code in ${p.title}.`, io);
+          }
+          let who = args.slice(1).join(' ').trim().slice(0, 60);
+          if (!who && io.sh.host.readLine && io.isTTY) {
+            io.out(c("who's visiting? recruiter, engineer, researcher, friend, curious (Enter: let the AI guess)\n", 'gray'));
+            who = ((await io.sh.host.readLine('you are> ', io.signal)) ?? '').trim().slice(0, 60);
+          }
+          return io.sh.host.ask(`(tour --me) ${who ? `I'm a ${who}. ` : ''}Pick a short path through William's work for me.`, io);
+        }
         const withTour = ct.projects.filter((p) => p.tour?.length);
         const p = args[0] ? findProject(ct, args[0]) : undefined;
-        if (!p?.tour?.length) { io.err(`usage: tour <project>. available: ${withTour.map((x) => x.slug).join(', ')}\n`); return 1; }
+        if (!p?.tour?.length) { io.err(`usage: tour <project> | tour --code <project> | tour --me. available: ${withTour.map((x) => x.slug).join(', ')}\n`); return 1; }
         if (io.isTTY) { show(io, { component: 'Tour', props: { slug: p.slug } }); return 0; }
         io.out(p.tour.map((s, i) => `${i + 1}. ${s.title}\n${wrap(s.text, W(io), '   ')}`).join('\n') + '\n');
         return 0;
@@ -619,6 +634,18 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
         return io.sh.host.ask(q, io);
       },
     },
+    trace: {
+      help: "show or hide the assistant's tool calls (on by default)",
+      man: "trace [on|off]\n\n  trace        is it on?\n  trace off    show plain step labels instead (\"● searching the code\")\n  trace on     show each tool call with its arguments, then how much came back and how long it took\n\nThe calls are the assistant's real ones: what it searched, read, ran, or showed.",
+      run: (args, io) => {
+        if (!io.sh.host.trace) { io.err('trace: not available here\n'); return 1; }
+        const want = args[0]?.toLowerCase();
+        if (want && want !== 'on' && want !== 'off') { io.err('usage: trace [on|off]\n'); return 1; }
+        const on = io.sh.host.trace(want === undefined ? undefined : want === 'on');
+        io.out(`trace ${on ? 'on' : 'off'}: ${c(on ? "the assistant's tool calls show with their arguments" : 'tool calls show as short labels', 'gray')}\n`);
+        return 0;
+      },
+    },
     chat: {
       help: 'talk to the AI assistant until you type exit',
       run: async (_a, io) => {
@@ -649,11 +676,22 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
       },
     },
 
+    demo: {
+      readonly: true, help: "run William's work live in your browser (demo whisper)",
+      man: 'demo [whisper]\n\n  demo whisper    speech-to-text with whisper-tiny.en, FP32 vs INT8 encoder, measured in your browser\n\nNothing downloads until you press a button. Models come from the Hugging Face hub.',
+      run: (args, io) => {
+        const d = (args[0] ?? 'whisper').toLowerCase();
+        if (d !== 'whisper') { io.err('usage: demo whisper\n'); return 1; }
+        if (!io.isTTY || !io.sh.host.ui) { io.out('demo whisper: open https://wholden.com/?cmd=demo%20whisper in a browser\n'); return 0; }
+        io.sh.host.ui({ component: 'WhisperDemo', props: {} });
+        return 0;
+      },
+    },
     boot: {
       help: 'boot a real Linux machine in your browser (v86 emulator)',
       run: async (_a, io) => {
         if (!io.sh.host.program) { io.err('boot: not available here\n'); return 1; }
-        io.out(c('Booting a real x86 Linux (Buildroot 6.8) inside your browser. Type exit or press Ctrl-] to come back.\n', 'gray'));
+        io.out(c('Booting a real x86 Linux (Buildroot 6.8) inside your browser. Ctrl-G asks the AI, which can type in it. Type exit or press Ctrl-] to come back.\n', 'gray'));
         return (await io.sh.host.program({ program: 'boot' }, io.signal)).code;
       },
     },
@@ -702,7 +740,7 @@ export function portfolioCommands(ct: Content): Record<string, Command> {
         };
         io.out(['',
           group('about william', ['resume', 'projects', 'open', 'tour', 'skills', 'timeline', 'gallery', 'contact', 'neofetch']),
-          group('ai', ['ask', 'chat', 'fit']),
+          group('ai', ['ask', 'chat', 'fit', 'demo', 'trace']),
           group('shell', ['ls', 'cd', 'cat', 'less', 'grep', 'find', 'tree', 'nano', 'vim', 'man', 'history', 'top', 'curl', 'git']),
           group('extras', ['boot', 'theme', 'cowsay', 'fortune']),
           '',

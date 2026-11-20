@@ -683,7 +683,183 @@ function FitReport({ content, props }: Props) {
   );
 }
 
-const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { Showcase, StatsReadout, Tour, CodeBlock, Sources, MessageForm, OnePager, ProfileHeader, ProjectGrid, Timeline, SkillMap, FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity };
+// ---- agent presentations ----
+// A code tour: the assistant's narration beside real lines from the code index, tmux-style tabs below.
+// Steps are validated server-side; CodeBlock checks each path against the public index again.
+type CodeStep = { repo: string; path: string; start: number; end: number; title: string; text: string };
+function CodeTour({ content, props }: Props) {
+  const steps = (Array.isArray(props.steps) ? props.steps : []).slice(0, 6).map((x) => {
+    const o = x as Record<string, unknown>;
+    return { repo: String(o.repo ?? ''), path: String(o.path ?? ''), start: Number(o.start) || 1, end: Number(o.end) || 1, title: String(o.title ?? '').slice(0, 60), text: String(o.text ?? '').slice(0, 320) } as CodeStep;
+  }).filter((x) => x.repo && x.path);
+  const [i, setI] = useState(0);
+  if (steps.length < 2) return null;
+  const s = steps[i];
+  const go = (d: number) => setI((x) => Math.max(0, Math.min(steps.length - 1, x + d)));
+  return (
+    <div className="tr ct" data-keyfocus onKeyDown={(e) => {
+      if (e.key === 'ArrowRight') { e.stopPropagation(); go(1); } else if (e.key === 'ArrowLeft') { e.stopPropagation(); go(-1); }
+    }}>
+      <div className="tr-panes">
+        <div className="tr-text">
+          <span className="cm-muted">code tour · step {i + 1} of {steps.length}</span>
+          <h3 className="tr-title">{s.title}</h3>
+          <p>{s.text}</p>
+          <p className="cm-muted ct-ai">narrated by the AI assistant from the lines shown</p>
+          <div className="tr-nav">
+            <button type="button" className="cm-btn" onClick={() => go(-1)} aria-disabled={i === 0}>← prev</button>
+            <button type="button" className="cm-btn tr-next" onClick={() => go(1)} aria-disabled={i === steps.length - 1}>next →</button>
+          </div>
+        </div>
+        <div className="ct-code" key={i}><CodeBlock content={content} props={{ repo: s.repo, path: s.path, start: s.start, end: s.end }} /></div>
+      </div>
+      <div className="tr-status" role="group" aria-label="Code tour steps">
+        <span className="b">[{String(props.title ?? 'code').slice(0, 40)}]</span>
+        {steps.map((x, k) => <button type="button" key={k} aria-pressed={k === i} data-on={k === i ? '' : undefined} onClick={() => setI(k)}>{k}:{x.path.split('/').pop()}{k === i ? '*' : ''}</button>)}
+      </div>
+    </div>
+  );
+}
+
+// `tour --me`: a short path the assistant picked for this visitor. Each stop is a site command
+// (checked server-side against real slugs) that runs in the visitor's shell when clicked.
+const AUDIENCES = ['recruiter', 'engineer', 'researcher', 'friend', 'curious'];
+function TourPath({ props }: Props) {
+  const run = useContext(RunContext);
+  const [done, setDone] = useState<number[]>([]);
+  const stops = (Array.isArray(props.stops) ? props.stops : []).slice(0, 5).map((x) => {
+    const o = x as Record<string, unknown>;
+    return { command: String(o.command ?? '').slice(0, 60), why: String(o.why ?? '').slice(0, 120) };
+  }).filter((x) => /^[\w .+#-]+$/.test(x.command));
+  if (!stops.length) return null;
+  const who = AUDIENCES.includes(String(props.audience)) ? String(props.audience) : 'visitor';
+  const go = (k: number) => { setDone((d) => (d.includes(k) ? d : [...d, k])); run(stops[k].command); };
+  const next = stops.findIndex((_, k) => !done.includes(k));
+  return (
+    <div className="tp">
+      <span className="cm-eyebrow">your path · for a {who}</span>
+      {typeof props.why === 'string' && <p className="tp-why">{props.why.slice(0, 160)}</p>}
+      <ol className="tp-list">
+        {stops.map((x, k) => (
+          <li key={k} data-done={done.includes(k) ? '' : undefined}>
+            <span className="tp-n" aria-hidden="true">{done.includes(k) ? '✓' : k + 1}</span>
+            <button type="button" className="cm-linkbtn tp-cmd" onClick={() => go(k)}>{x.command}</button>
+            <span className="cm-muted"> {x.why}</span>
+          </li>
+        ))}
+      </ol>
+      {next >= 0 && <button type="button" className="cm-btn" onClick={() => go(next)}>{done.length ? 'next stop →' : 'start →'}</button>}
+    </div>
+  );
+}
+
+// Live demo: whisper-tiny.en speech-to-text in the browser (transformers.js + ONNX Runtime Web),
+// with the encoder in FP32 or INT8. Nothing loads until the visitor presses a button.
+const TJS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
+const WHISPER_MODEL = 'Xenova/whisper-tiny.en';
+const SAMPLE_URL = 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav';
+type Dtype = 'fp32' | 'q8';
+type Asr = (audio: string | Float32Array) => Promise<{ text?: string } | { text?: string }[]>;
+const asrCache: Partial<Record<Dtype, Promise<{ asr: Asr; encoderMb: number }>>> = {};
+function loadAsr(dtype: Dtype, onProgress: (loadedMb: number, totalMb: number) => void) {
+  return (asrCache[dtype] ??= (async () => {
+    const tjs = await import(/* @vite-ignore */ TJS_URL);
+    tjs.env.allowLocalModels = false;
+    const files = new Map<string, { loaded: number; total: number }>();
+    const asr = await tjs.pipeline('automatic-speech-recognition', WHISPER_MODEL, {
+      dtype: { encoder_model: dtype, decoder_model_merged: 'q8' }, device: 'wasm',
+      progress_callback: (p: { status?: string; file?: string; loaded?: number; total?: number }) => {
+        if (p.status !== 'progress' || !p.file) return;
+        files.set(p.file, { loaded: p.loaded ?? 0, total: p.total ?? 0 });
+        let l = 0, t = 0;
+        for (const f of files.values()) { l += f.loaded; t += f.total; }
+        onProgress(l / 1e6, t / 1e6);
+      },
+    });
+    const enc = [...files].find(([f]) => f.includes('encoder_model'));
+    return { asr: asr as Asr, encoderMb: enc ? enc[1].total / 1e6 : 0 };
+  })().catch((e) => { delete asrCache[dtype]; throw e; }));
+}
+async function recordClip(seconds: number): Promise<Float32Array> {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  try {
+    const rec = new MediaRecorder(stream);
+    const chunks: Blob[] = [];
+    rec.ondataavailable = (e) => chunks.push(e.data);
+    const stopped = new Promise((r) => { rec.onstop = r; });
+    rec.start();
+    await new Promise((r) => setTimeout(r, seconds * 1000));
+    rec.stop();
+    await stopped;
+    const ac = new AudioContext({ sampleRate: 16000 });
+    const buf = await ac.decodeAudioData(await new Blob(chunks).arrayBuffer());
+    ac.close().catch(() => {});
+    return buf.getChannelData(0);
+  } finally { stream.getTracks().forEach((t) => t.stop()); }
+}
+type DemoRun = { state: 'loading' | 'running' | 'done' | 'error'; loaded?: number; total?: number; encoderMb?: number; ms?: number; text?: string; err?: string };
+function WhisperDemo({ content }: Props) {
+  const team = content.projects.find((x) => x.slug === 'whisper-optimization');
+  const [audio, setAudio] = useState<{ kind: 'sample' } | { kind: 'mic'; data: Float32Array } | { kind: 'recording' }>({ kind: 'sample' });
+  const [runs, setRuns] = useState<Partial<Record<Dtype, DemoRun>>>({});
+  const [micErr, setMicErr] = useState('');
+  const busy = Object.values(runs).some((r) => r && (r.state === 'loading' || r.state === 'running')) || audio.kind === 'recording';
+  const set = (d: Dtype, r: DemoRun) => setRuns((x) => ({ ...x, [d]: r }));
+  const go = async (d: Dtype) => {
+    if (audio.kind === 'recording') return;
+    set(d, { state: 'loading', loaded: 0, total: 0 });
+    try {
+      const { asr, encoderMb } = await loadAsr(d, (loaded, total) => set(d, { state: 'loading', loaded, total }));
+      set(d, { state: 'running', encoderMb });
+      const t0 = performance.now();
+      const out = await asr(audio.kind === 'mic' ? audio.data : SAMPLE_URL);
+      const text = (Array.isArray(out) ? out[0]?.text : out?.text) ?? '';
+      set(d, { state: 'done', encoderMb, ms: performance.now() - t0, text: text.trim().slice(0, 400) });
+    } catch (e) { set(d, { state: 'error', err: String((e as Error)?.message ?? e).slice(0, 160) }); }
+  };
+  const record = async () => {
+    setMicErr('');
+    setAudio({ kind: 'recording' });
+    try { setAudio({ kind: 'mic', data: await recordClip(5) }); }
+    catch { setMicErr('no microphone (or permission denied). using the sample clip.'); setAudio({ kind: 'sample' }); }
+  };
+  const maxMb = Math.max(1, ...Object.values(runs).map((r) => r?.encoderMb ?? 0));
+  const label: Record<Dtype, string> = { fp32: 'FP32 encoder', q8: 'INT8 encoder' };
+  return (
+    <div className="wd">
+      <span className="cm-eyebrow">live demo · runs in your browser</span>
+      <h3 className="tr-title">Whisper: FP32 vs INT8 encoder</h3>
+      <p>The idea behind {team ? team.title : 'his Whisper project'}: quantize the encoder to INT8 and keep the accuracy. This runs the public <code>whisper-tiny.en</code> (not the team's model) with ONNX Runtime Web, so the size and speed are measured on your machine.{team?.compare && <> On the team's model: {team.compare.rows.map((r) => `${r.label} ${r.value} ${r.unit}`).join(' → ')}.</>}</p>
+      <div className="wd-row" role="group" aria-label="Audio">
+        <button type="button" className="cm-btn" aria-pressed={audio.kind === 'sample'} disabled={busy} onClick={() => setAudio({ kind: 'sample' })}>{audio.kind === 'sample' ? '● ' : '○ '}sample clip (11s)</button>
+        <button type="button" className="cm-btn" aria-pressed={audio.kind !== 'sample'} disabled={busy} onClick={record}>{audio.kind === 'recording' ? '● recording 5s…' : audio.kind === 'mic' ? '● your 5s clip (record again)' : '○ record 5s'}</button>
+      </div>
+      {micErr && <p className="cm-muted">{micErr}</p>}
+      <div className="wd-row">
+        {(['fp32', 'q8'] as Dtype[]).map((d) => <button key={d} type="button" className="cm-btn" disabled={busy} onClick={() => go(d)}>run {label[d]}</button>)}
+      </div>
+      <div className={Object.keys(runs).length ? 'sr wd-out' : 'wd-out'} aria-live="polite">
+        {(['fp32', 'q8'] as Dtype[]).filter((d) => runs[d]).map((d) => {
+          const r = runs[d]!;
+          return (
+            <div key={d} className="wd-res">
+              <div className="sr-row">
+                <span>{label[d]}</span>
+                <span className={`sr-bar ${d === 'q8' ? 'c32' : 'cm-muted'}`} aria-hidden="true">{r.state === 'loading' ? bar(r.total ? (r.loaded ?? 0) / r.total : 0) : r.encoderMb ? '█'.repeat(Math.max(1, Math.round((r.encoderMb / maxMb) * BAR))) : ''}</span>
+                <strong>{r.state === 'loading' ? `downloading ${(r.loaded ?? 0).toFixed(0)}/${(r.total ?? 0).toFixed(0)} MB` : r.state === 'running' ? 'transcribing…' : r.state === 'error' ? 'failed' : `${r.encoderMb?.toFixed(1)} MB · ${((r.ms ?? 0) / 1000).toFixed(2)}s`}</strong>
+              </div>
+              {r.state === 'done' && <p className="wd-text">“{r.text || '(no speech found)'}”</p>}
+              {r.state === 'error' && <p className="cm-muted">{r.err} (this browser may block WebAssembly or the model download)</p>}
+            </div>
+          );
+        })}
+      </div>
+      <p className="cm-muted">Models come from Hugging Face (about 40-70 MB the first time) and stay in your browser's cache. Time includes the first-run warm-up.</p>
+    </div>
+  );
+}
+
+const REGISTRY: Record<string, (p: Props) => ReactElement | null> = { Showcase, StatsReadout, Tour, CodeBlock, Sources, MessageForm, OnePager, ProfileHeader, ProjectGrid, Timeline, SkillMap, FitReport, WebSources, ProjectCard, MediaViewer, Gallery, SitePreview, ResumeViewer, ContactForm, GitHubActivity, CodeTour, TourPath, WhisperDemo };
 
 export function UiBlock({ content, ui }: { content: Content | null; ui: { component: string; props: Record<string, unknown> } }) {
   const C = REGISTRY[ui.component];

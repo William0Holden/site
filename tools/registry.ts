@@ -35,7 +35,7 @@ export type Media = {
 export type PersonalEntry = { slug: string; title: string; tier: 'personal' | 'gated'; tags: string[]; body: string };
 
 export type UiAction =
-  | { component: 'CodeBlock' | 'Sources' | 'MessageForm' | 'OnePager' | 'ProfileHeader' | 'ProjectGrid' | 'Timeline' | 'SkillMap' | 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun' | 'StatsReadout' | 'Tour'; props: object }
+  | { component: 'CodeBlock' | 'Sources' | 'MessageForm' | 'OnePager' | 'ProfileHeader' | 'ProjectGrid' | 'Timeline' | 'SkillMap' | 'ProjectCard' | 'MediaViewer' | 'SitePreview' | 'ResumeViewer' | 'ContactForm' | 'GitHubActivity' | 'Gallery' | 'WebSources' | 'FitReport' | 'ShellRun' | 'StatsReadout' | 'Tour' | 'CodeTour' | 'TourPath' | 'WhisperDemo' | 'VmType'; props: object }
   | { effect: 'theme'; theme: { name: string } }
   | { effect: 'ambience'; level: 'plain' | 'phosphor' | 'color' | 'alive' | 'wake' }
   | { effect: 'confetti' | 'chicken' | 'matrix' | 'konami' };
@@ -46,7 +46,7 @@ export type Ctx = {
   unlocked?: boolean; // server-verified unlock cookie; gated entries require it
   loadCode?: () => Promise<CodeIndex>; // public-repo code index (Worker only)
 };
-export type Surface = 'chat' | 'cli' | 'ssh' | 'mcp';
+export type Surface = 'chat' | 'cli' | 'ssh' | 'mcp' | 'vm'; // vm: the assistant inside `boot`
 
 export type Tool<S extends z.ZodType = z.ZodType> = {
   name: string;
@@ -336,9 +336,10 @@ tools.push(
       path: z.string().min(1).max(300),
       start: z.number().int().min(1).optional(),
       end: z.number().int().min(1).optional(),
+      quiet: z.boolean().optional().describe('true while gathering lines for present_code_tour: the lines are not shown on their own'),
     }),
     visibility: 'listed', tier: 'public', surfaces: ['chat', 'mcp'],
-    async handler({ repo, path, start, end }, ctx) {
+    async handler({ repo, path, start, end, quiet }, ctx) {
       const idx = ctx.loadCode ? await ctx.loadCode().catch(() => []) : [];
       const r = idx.length ? findRepo(idx, repo) : undefined;
       if (!r) return { text: `No repo "${repo}".` };
@@ -347,7 +348,7 @@ tools.push(
       const out = readLines(f, start ?? 1, end);
       return {
         text: `${r.name}/${f.path} lines ${out.start}-${out.end} of ${out.total}${r.team ? ' (team repo: co-written with classmates; do not attribute it to William alone)' : ''}:\n` + out.lines.map((l, i) => `${out.start + i}: ${l}`).join('\n'),
-        ui: { component: 'CodeBlock', props: { repo: r.name, path: f.path, start: out.start, end: out.end } },
+        ui: quiet ? undefined : { component: 'CodeBlock', props: { repo: r.name, path: f.path, start: out.start, end: out.end } },
       };
     },
   }),
@@ -536,6 +537,100 @@ tools.push(
         text: 'Showed a message form. Tell the visitor to review it and press Send; nothing has been sent yet.',
         ui: { component: 'MessageForm', props: { name: name ?? '', email: email ?? '', note: note ?? '' } },
       };
+    },
+  }),
+);
+
+// ---- agent presentations: code tours, visitor paths, demos, the VM ----
+export const CODE_TOUR_MAX_LINES = 30;
+// Commands a visitor path may suggest: read-only views over real slugs, plus the code tour and demo.
+export function pathCommandOk(content: Content, cmd: string): boolean {
+  const slug = (x: string) => content.projects.some((p) => p.slug === x);
+  const m = cmd.trim().match(/^(resume|resume --short|projects|timeline|contact|gallery|github|fit|boot|demo whisper|skills(?: [\w.+#-]{1,30})?|projects [\w-]{1,30})$/);
+  if (m) return true;
+  const s = cmd.trim().match(/^(open|tour|tour --code|gallery) ([a-z0-9-]{1,64})$/);
+  return Boolean(s && slug(s[2]));
+}
+
+tools.push(
+  tool({
+    name: 'present_code_tour',
+    description: `Walk the visitor through real code, step by step: narration beside the lines, like a guided tour. First find the code (search_code / list_code) and read each excerpt with read_code quiet:true, then call this once with 2-6 steps in reading order. Each step shows at most ${CODE_TOUR_MAX_LINES} lines; its text must only describe what those lines do.`,
+    input: z.object({
+      title: z.string().min(2).max(80).describe('e.g. "How the tracker assigns IDs"'),
+      steps: z.array(z.object({
+        repo: z.string().regex(/^[\w.-]{1,80}$/),
+        path: z.string().min(1).max(300),
+        start: z.number().int().min(1),
+        end: z.number().int().min(1),
+        title: z.string().min(2).max(60),
+        text: z.string().min(2).max(320).describe('1-3 sentences on what these lines do'),
+      })).min(2).max(6),
+    }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat'],
+    async handler({ title, steps }, ctx) {
+      const idx = ctx.loadCode ? await ctx.loadCode().catch(() => []) : [];
+      if (!idx.length) return { text: 'The code index is unavailable right now.' };
+      const ok: { repo: string; path: string; start: number; end: number; title: string; text: string; team: boolean }[] = [];
+      const bad: string[] = [];
+      for (const st of steps) {
+        const r = findRepo(idx, st.repo);
+        const f = r && findFile(r, st.path);
+        if (!r || !f) { bad.push(`${st.repo}/${st.path}`); continue; }
+        const out = readLines(f, st.start, Math.min(st.end, st.start + CODE_TOUR_MAX_LINES - 1));
+        ok.push({ repo: r.name, path: f.path, start: out.start, end: out.end, title: st.title.trim(), text: st.text.trim(), team: r.team });
+      }
+      if (ok.length < 2) return { text: `Not enough valid steps${bad.length ? ` (not found: ${bad.join(', ')})` : ''}. Use list_code / search_code to find real paths.` };
+      const team = ok.some((x) => x.team);
+      return {
+        text: `Code tour "${title}" shown, ${ok.length} steps: ${ok.map((x, i) => `${i + 1}. ${x.title} (${x.repo}/${x.path} L${x.start}-${x.end})`).join(' ')}${bad.length ? `. Skipped (not found): ${bad.join(', ')}` : ''}${team ? '. Includes a team repo: say "the team\'s code".' : ''} Don't repeat the steps.`,
+        ui: { component: 'CodeTour', props: { title: title.trim(), steps: ok.map(({ team: _t, ...x }) => x) } },
+      };
+    },
+  }),
+  tool({
+    name: 'present_path',
+    description: "Lay out a short, personal path through the site for this visitor (the `tour --me` command): 2-5 stops, each a site command and why it fits them. Guess who they are from what they asked or said (recruiter, engineer, researcher, friend, curious).",
+    input: z.object({
+      audience: z.enum(['recruiter', 'engineer', 'researcher', 'friend', 'curious']),
+      why: z.string().min(2).max(160).describe('One sentence: what this path shows them'),
+      stops: z.array(z.object({
+        command: z.string().min(2).max(60).describe('e.g. "tour broiler-behavior", "tour --code decktection", "skills pytorch", "resume --short", "demo whisper", "fit"'),
+        why: z.string().min(2).max(120),
+      })).min(2).max(5),
+    }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat'],
+    async handler({ audience, why, stops }, ctx) {
+      const ok = stops.filter((s) => pathCommandOk(ctx.content, s.command)).map((s) => ({ command: s.command.trim(), why: s.why.trim() }));
+      const bad = stops.filter((s) => !pathCommandOk(ctx.content, s.command)).map((s) => s.command);
+      if (ok.length < 2) return { text: `Those stops aren't site commands${bad.length ? ` (${bad.join(', ')})` : ''}. Use: tour <slug>, tour --code <slug>, open <slug>, gallery <slug>, skills [name], timeline, resume [--short], projects [keyword], github, demo whisper, fit, contact.` };
+      return {
+        text: `Showed a ${ok.length}-stop path for a ${audience}: ${ok.map((s) => s.command).join(' → ')}${bad.length ? ` (dropped: ${bad.join(', ')})` : ''}. Add one sentence at most.`,
+        ui: { component: 'TourPath', props: { audience, why: why.trim(), stops: ok } },
+      };
+    },
+  }),
+  tool({
+    name: 'run_demo',
+    description: "Show a live demo that runs in the visitor's browser. whisper: speech-to-text with the public whisper-tiny.en model, FP32 vs INT8-quantized encoder side by side (the idea behind his Whisper optimization project), on a sample clip or their microphone. Nothing runs until they press a button.",
+    input: z.object({ demo: z.enum(['whisper']) }),
+    visibility: 'listed', tier: 'public', surfaces: ['chat'],
+    async handler({ demo }) {
+      return {
+        text: `Showed the ${demo} demo. It uses the public whisper-tiny.en model, not the team's model; the visitor measures size and speed in their own browser. Don't predict their numbers.`,
+        ui: { component: 'WhisperDemo', props: {} },
+      };
+    },
+  }),
+  tool({
+    name: 'vm_type',
+    description: "Type one shell command into the visitor's VM and press Enter (they watch it run). Commands run in order, about a second apart; you won't see the output in this reply.",
+    input: z.object({ command: z.string().min(1).max(200).describe('One line, e.g. "uname -a" or "ls /proc | head"') }),
+    visibility: 'listed', tier: 'public', surfaces: ['vm'],
+    async handler({ command }) {
+      const line = command.replace(/[\x00-\x1f\x7f]/g, ' ').trim();
+      if (!line) return { text: 'Empty command.' };
+      return { text: `Typed into the VM: ${line}`, ui: { component: 'VmType', props: { command: line } } };
     },
   }),
 );

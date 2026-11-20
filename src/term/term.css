@@ -408,3 +408,35 @@ span.ls-thumb { background: none; }
 @media (max-width: 620px) { .gn-row { grid-template-columns: minmax(0, 1fr); } .gn-axis span:first-child { display: none; } }
 .cm-fit-score { margin: 0 0 .6em; }
 .cm-fit-foot { margin: .6em 0 0; font-size: .85em; }
+
+/* agent presentations: code tours, visitor paths, the live demo */
+.term-ui:has(.ct) { max-width: none; }
+.ct-code { min-width: 0; border-left: 1px solid var(--border); }
+.ct-code .code { border: 0; animation: none; }
+.ct-code .code-body { max-height: min(30em, 60vh); }
+.ct-ai { font-size: .8em; }
+@media (max-width: 760px) { .ct-code { order: -1; border-left: 0; border-bottom: 1px solid var(--border); } }
+.tp { border: 1px solid var(--border); padding: .8em 1em; max-width: 60em; animation: rise .4s cubic-bezier(.2,.7,.2,1) both; }
+.tp-why { margin: .3em 0 .5em; }
+.tp-list { list-style: none; margin: 0 0 .8em; padding: 0; display: grid; gap: .35em; }
+.tp-list li { display: grid; grid-template-columns: 3ch minmax(0, auto) minmax(0, 1fr); gap: 0 1ch; align-items: baseline; }
+.tp-list li[data-done] .tp-cmd { opacity: .6; }
+.tp-n { color: var(--muted); text-align: right; }
+.tp-cmd { white-space: nowrap; min-height: 32px; justify-self: start; text-align: left; }
+@media (max-width: 620px) { .tp-list li { grid-template-columns: 3ch minmax(0, 1fr); } .tp-list li .cm-muted { grid-column: 2; } }
+.wd { border: 1px solid var(--border); padding: .8em 1em; max-width: 60em; display: flex; flex-direction: column; gap: .6em; animation: rise .4s cubic-bezier(.2,.7,.2,1) both; }
+.wd p { margin: 0; }
+.wd-row { display: flex; flex-wrap: wrap; gap: .5em; }
+.wd-row .cm-btn[disabled] { opacity: .45; cursor: default; }
+.wd-row .cm-btn[aria-pressed='true'] { border-width: 2px; }
+.wd-res + .wd-res { margin-top: .5em; }
+.wd-text { margin: .2em 0 0 !important; font-style: italic; overflow-wrap: anywhere; }
+.boot-btns { display: inline-flex; gap: .5ch; }
+.boot-ai { border-top: 1px solid var(--fg); max-height: 40%; display: flex; flex-direction: column; background: var(--bg); }
+.boot-ai-log { overflow: auto; padding: 4px 1ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.boot-ai-q { color: var(--ansi-cyan, var(--fg)); }
+.boot-ai-tool { color: var(--muted); }
+.boot-ai-err { color: var(--ansi-yellow, var(--fg)); }
+.boot-ai-in { display: flex; gap: 1ch; padding: 2px 1ch; border-top: 1px solid var(--border); }
+.boot-ai-in input { flex: 1; font: inherit; color: inherit; background: transparent; border: 0; outline: none; min-height: 32px; }
+@media (pointer: coarse) { .boot-ai-in input { font-size: max(16px, 1em); } }
