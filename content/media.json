@@ -303,24 +303,6 @@
     "projects": []
   },
   {
-    "id": "personal-oahu-ridge",
-    "type": "image",
-    "src": "src/assets/personal/oahu-ridge.jpg",
-    "title": "Ridge hike on Oahu",
-    "alt": "Selfie of William smiling in a cap on a ridge, with green mountains and a turquoise bay behind him.",
-    "caption": "Oahu, May 2024.",
-    "projects": []
-  },
-  {
-    "id": "personal-oahu-tunnel",
-    "type": "image",
-    "src": "src/assets/personal/oahu-tunnel.jpg",
-    "title": "Exploring on Oahu",
-    "alt": "William grinning with a thumbs up in a tie-dye shirt inside a dark tunnel with old steel beams.",
-    "caption": "Oahu, May 2024.",
-    "projects": []
-  },
-  {
     "id": "personal-beanbag",
     "type": "image",
     "src": "src/assets/personal/beanbag.jpg",

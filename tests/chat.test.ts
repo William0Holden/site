@@ -125,7 +125,7 @@ test('family, college, and travel topics answer public visitors', async () => {
 
 test('personal photos are in the catalog, small, and carry no camera metadata', () => {
   const photos = content.media.filter((m) => m.id.startsWith('personal-'));
-  assert.ok(photos.length >= 7);
+  assert.ok(photos.length >= 5);
   assert.match(systemPrompt(content), /personal-toddler/);
   for (const m of photos) {
     const bytes = readFileSync(new URL(`../dist/media/${m.id}.jpg`, import.meta.url));
