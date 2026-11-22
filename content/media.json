@@ -292,5 +292,68 @@
     "projects": [
       "whisper-optimization"
     ]
+  },
+  {
+    "id": "personal-laughing",
+    "type": "image",
+    "src": "src/assets/personal/laughing.jpg",
+    "title": "William, mid-laugh",
+    "alt": "William laughing outdoors in a blue sailboat-print shirt, with a white building and trees behind him.",
+    "caption": "Summer 2024.",
+    "projects": []
+  },
+  {
+    "id": "personal-oahu-ridge",
+    "type": "image",
+    "src": "src/assets/personal/oahu-ridge.jpg",
+    "title": "Ridge hike on Oahu",
+    "alt": "Selfie of William smiling in a cap on a ridge, with green mountains and a turquoise bay behind him.",
+    "caption": "Oahu, May 2024.",
+    "projects": []
+  },
+  {
+    "id": "personal-oahu-tunnel",
+    "type": "image",
+    "src": "src/assets/personal/oahu-tunnel.jpg",
+    "title": "Exploring on Oahu",
+    "alt": "William grinning with a thumbs up in a tie-dye shirt inside a dark tunnel with old steel beams.",
+    "caption": "Oahu, May 2024.",
+    "projects": []
+  },
+  {
+    "id": "personal-beanbag",
+    "type": "image",
+    "src": "src/assets/personal/beanbag.jpg",
+    "title": "Beanbag, thumbs up",
+    "alt": "William in a hoodie sunk into a giant blue beanbag, giving a thumbs up.",
+    "caption": "Spring 2024.",
+    "projects": []
+  },
+  {
+    "id": "personal-daisy",
+    "type": "image",
+    "src": "src/assets/personal/daisy.jpg",
+    "title": "Daisy",
+    "alt": "A black dog wrapped in a grey comforter on a bed, looking sideways at the camera.",
+    "caption": "Daisy, the family dog.",
+    "projects": []
+  },
+  {
+    "id": "personal-daisy-boat",
+    "type": "image",
+    "src": "src/assets/personal/daisy-boat.jpg",
+    "title": "Daisy on the boat",
+    "alt": "A black dog resting her head on a pink blanket on a boat seat.",
+    "caption": "Daisy on a boat day.",
+    "projects": []
+  },
+  {
+    "id": "personal-toddler",
+    "type": "image",
+    "src": "src/assets/personal/toddler.jpg",
+    "title": "William as a toddler",
+    "alt": "An old print of William as a toddler in a striped shirt, one hand on his head.",
+    "caption": "A while ago.",
+    "projects": []
   }
 ]
