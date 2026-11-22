@@ -386,7 +386,7 @@ tools.push(
     visibility: 'hidden', tier: 'personal', surfaces: ['chat'],
     async handler({ topic }, ctx) {
       const entries = (ctx.personal ?? []).filter((e) => e.tier === 'personal' || ctx.unlocked);
-      const q = new Set(words(topic));
+      const q = new Set(words(topic).filter((w) => !ASK_STOP.has(w)));
       const hit = entries
         .map((e) => ({ e, score: words([e.title, e.tags.join(' '), e.slug].join(' ')).filter((w) => q.has(w)).length * 3 + words(e.body).filter((w) => q.has(w)).length }))
         .filter((x) => x.score > 0)
@@ -436,6 +436,8 @@ function evidenceFor(ctx: Ctx, req: string): { strength: 'strong' | 'partial' | 
   const strength = (skillHit && top.length) || (top[0]?.score ?? 0) >= 4 ? 'strong' : skillHit || top.length ? 'partial' : 'none';
   return { strength, evidence: top, skill: skillHit };
 }
+// Filler words in a visitor's question; without this, whichever entry says "he" most wins.
+const ASK_STOP = new Set(['he', 'his', 'him', 'william', 'does', 'do', 'did', 'is', 'are', 'was', 'were', 'has', 'have', 'had', 'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'at', 'for', 'with', 'about', 'what', 'where', 'who', 'when', 'how', 'why', 'which', 'any', 'some', 'it', 'they', 'like', 'me', 'tell', 'you', 'can', 'there', 'that', 'this', 'from', 'as', 'be', 'been', 'most', 'more', 'much', 'many']);
 const STOP = new Set(['experience', 'with', 'and', 'the', 'for', 'years', 'year', 'strong', 'knowledge', 'ability', 'skills', 'using', 'work', 'working', 'plus', 'preferred', 'required', 'familiarity', 'understanding', 'systems', 'system', 'tools', 'tool', 'frameworks', 'framework', 'technologies', 'environment', 'environments', 'production', 'proficiency', 'proficient', 'in', 'of', 'to', 'or', 'an', 'a', 'on', 'build', 'building', 'develop', 'developing', 'excellent', 'solid', 'hands-on']);
 
 // ---------- tailored one-pager ----------
