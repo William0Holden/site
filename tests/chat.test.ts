@@ -111,3 +111,26 @@ test('shipped personal entries are personal tier and stay out of public output',
   const pub = readFileSync(new URL('../dist/api/content.json', import.meta.url), 'utf8');
   for (const e of shipped) assert.ok(!pub.includes(e.body.trim().slice(0, 40)), e.slug);
 });
+
+test('family, college, and travel topics answer public visitors', async () => {
+  const shipped = JSON.parse(readFileSync(new URL('../worker/generated/personal.json', import.meta.url), 'utf8')) as PersonalEntry[];
+  const ctx: Ctx = { content, host: 'x', ansi: false, personal: shipped, unlocked: false };
+  const title = async (topic: string) => (await ask.handler({ topic }, ctx)).text.split('\n')[0];
+  for (const q of ['family', 'does he have any siblings', 'does he have a dog', 'where did he grow up']) assert.equal(await title(q), 'Family and friends', q);
+  for (const q of ['college life', 'was he an RA', 'does he run']) assert.equal(await title(q), 'College life at UGA', q);
+  for (const q of ['travel', 'where has he traveled', 'does he like hiking']) assert.equal(await title(q), 'Trips and travel', q);
+  assert.equal(await title('What does he do for fun?'), 'Hobbies and life outside work');
+  for (const q of ['where does he live', 'is he married', 'how old is he']) assert.match(await title(q), /^Nothing on/, q);
+});
+
+test('personal photos are in the catalog, small, and carry no camera metadata', () => {
+  const photos = content.media.filter((m) => m.id.startsWith('personal-'));
+  assert.ok(photos.length >= 7);
+  assert.match(systemPrompt(content), /personal-toddler/);
+  for (const m of photos) {
+    const bytes = readFileSync(new URL(`../dist/media/${m.id}.jpg`, import.meta.url));
+    assert.ok(bytes.length < 600_000, m.id);
+    assert.ok(!bytes.includes('Exif') && !bytes.includes('http://ns.adobe.com/xap'), `${m.id} has metadata`);
+    assert.ok(m.alt && m.title, m.id);
+  }
+});
